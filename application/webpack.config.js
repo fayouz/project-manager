@@ -26,7 +26,7 @@ Encore
     .enableReactPreset()
 
     .addEntry('admin', './assets/js/admin.js')
-    .addEntry('app', './assets/js/app.js')
+    .addEntry('app', './assets/vue/index.js')
     //.addEntry('page1', './assets/js/page1.js')
     //.addEntry('page2', './assets/js/page2.js')
     .enableVueLoader()
