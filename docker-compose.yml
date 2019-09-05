@@ -1,0 +1,34 @@
+version: "3.1"
+services:
+  mariadb:
+    image: mariadb:10.4
+    container_name: project-manager-mariadb
+    restart: 'on-failure'
+    working_dir: /var/www/html
+    volumes:
+      - ./application:/var/www/html
+    environment:
+      - MYSQL_ROOT_PASSWORD=jfuwpml8
+      - MYSQL_DATABASE=ProjectManager
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=jfuwpml8
+    ports:
+      - "3306:3306"
+  webserver:
+    image: nginx:alpine
+    container_name: project-manager-webserver
+    working_dir: /var/www/html
+    volumes:
+      - ./application:/var/www/html
+      - ./phpdocker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      ports:
+        - '80:80'
+        - '443:443'
+  php-fpm:
+    build: phpdocker/php-fpm
+    container_name: project-manager-php-fpm
+    working_dir: /var/www/html
+    volumes:
+      - ./application:/var/www/html
+      - ./phpdocker/php-fpm/php-ini-overrides.ini:/etc/php/7.3/fpm/conf.d/99-overrides.ini
