@@ -21,6 +21,11 @@ class Project
      */
     private $name;
 
+    /**
+     * @ORM\Column(type="text", nullable=true)
+     */
+    private $summary;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -34,6 +39,18 @@ class Project
     public function setName(string $name): self
     {
         $this->name = $name;
+
+        return $this;
+    }
+
+    public function getSummary(): ?string
+    {
+        return $this->summary;
+    }
+
+    public function setSummary(?string $summary): self
+    {
+        $this->summary = $summary;
 
         return $this;
     }
