@@ -16,6 +16,7 @@
     "dependencies": {
         "@api-platform/admin": "^0.6.3",
         "@babel/preset-react": "^7.0.0",
+        "axios": "^0.19.0",
         "react": "^16.9.0",
         "react-dom": "^16.9.0",
         "vue": "^2.6.10",
