@@ -1,0 +1,5 @@
+# fixtures/project.yaml
+App\Entity\Project:
+    project_1:
+      name: "Test1"
+      summary: "Test Summary"

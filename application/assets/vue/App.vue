@@ -32,6 +32,16 @@
                         <a class="nav-link">Home</a>
                     </router-link>
                 </ul>
+                <ul class="navbar-nav">
+                    <router-link
+                            class="nav-item"
+                            tag="li"
+                            to="/project"
+                            active-class="active"
+                    >
+                        <a class="nav-link">Project</a>
+                    </router-link>
+                </ul>
             </div>
         </nav>
 

@@ -11,7 +11,11 @@ use Symfony\Component\Routing\Annotation\Route;
 final class IndexController extends AbstractController
 {
     /**
-     * @Route("/{vueRouting}", name="index")
+     * @Route(
+     *     "/{vueRouting}",
+     *     name="index",
+     *     requirements={"vueRouting"="^((?!api|admin).)*$"}
+     *     )
      * @return Response
      */
     public function indexAction(): Response
