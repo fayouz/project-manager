@@ -18,7 +18,7 @@ class ProjectTest extends PantherTestCase
 
         $client->waitFor('#projectTitle');
         $this->assertSame('Projects', $crawler->filter('h1:first-of-type')->text());
-        $this->assertSame('Test1', $crawler->filter('h1:nth-child(2)')->text());
+        $this->assertSame('Project Title 1', $crawler->filter('h1:nth-child(2)')->text());
         $client->takeScreenshot('/tmp/panther.png');
     }
 }

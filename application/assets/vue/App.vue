@@ -36,10 +36,10 @@
                     <router-link
                             class="nav-item"
                             tag="li"
-                            to="/project"
+                            to="/projects"
                             active-class="active"
                     >
-                        <a class="nav-link">Project</a>
+                        <a class="nav-link">Projects</a>
                     </router-link>
                 </ul>
             </div>

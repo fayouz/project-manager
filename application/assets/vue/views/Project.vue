@@ -43,7 +43,14 @@
             }
         },
         created() {
+            console.log('dispatch');
             this.$store.dispatch("project/find", this.$route.params.id);
+
+            const url = new URL('http://mercure:3000/hub');
+            url.searchParams.append('topic', 'http://project-manager.local/projects/' + this.$route.params.id);
+
+            const eventSource = new EventSource(url);
+            eventSource.onmessage = e => console.log(e);
         },
         methods: {
             async createProject() {

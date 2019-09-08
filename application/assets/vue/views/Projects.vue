@@ -46,7 +46,7 @@
         <div v-else class="row col      ">
             <b-card-group v-for="project in projects" :key="project.id" deck>
 
-                    <project :name="project.name" :summary="project.summary"/>
+                    <project :name="project.name" :summary="project.summary" :id="project.id"/>
 
             </b-card-group>
 

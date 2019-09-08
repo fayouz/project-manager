@@ -6,7 +6,9 @@ use ApiPlatform\Core\Annotation\ApiResource;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * @ApiResource
+ * @ApiResource(
+ *      mercure=true
+ *     )
  * @ORM\Entity(repositoryClass="App\Repository\ProjectRepository")
  */
 class Project

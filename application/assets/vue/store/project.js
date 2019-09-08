@@ -16,7 +16,8 @@ export default {
         isLoading: false,
         error: null,
         projects: [],
-        project:null
+        project:null,
+        hubUrl:null
     },
     getters: {
         isLoading(state) {
@@ -77,6 +78,7 @@ export default {
             state.isLoading = false;
             state.error = null;
             state.project = project;
+         //   state.hubUrl = hubUrl;
         },
         [FETCHING_PROJECT_ERROR](state, error) {
             state.isLoading = false;
@@ -111,6 +113,7 @@ export default {
             commit(FETCHING_PROJECT);
             try {
                 let response = await ProjectAPI.find(id);
+                //response.headers.link.match(/<([^>]+)>;\s+rel="[^"]*mercure[^"]*"/)[1]
                 commit(FETCHING_PROJECT_SUCCESS, response.data);
                 return response.data;
             } catch (error) {
