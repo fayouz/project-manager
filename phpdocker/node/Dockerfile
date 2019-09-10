@@ -10,6 +10,6 @@ RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
 
 RUN apt-get update && \
 	apt-get install -y \
-		yarn \
+		yarn
 
 WORKDIR "/var/www/html/application"

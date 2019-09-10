@@ -14,19 +14,6 @@ services:
       - MYSQL_PASSWORD=jfuwpml8
     ports:
       - "3306:3306"
-  webserver:
-    image: nginx:alpine
-    container_name: project-manager-webserver
-    working_dir: /var/www/html
-    volumes:
-      - ./application:/var/www/html
-      - ./phpdocker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
-    ports:
-      - "80:80"
-      - "8080:8080"
-    environment:
-      - NGINX_HOST=project-manager.local
-      - NGINX_PORT=80
   php-fpm:
     build: phpdocker/php-fpm
     container_name: project-manager-php-fpm
@@ -40,6 +27,13 @@ services:
     working_dir: /var/www/html/application
     volumes:
       - ./application:/var/www/html/application
+  webserver:
+    build: phpdocker/nginx
+    container_name: project-manager-webserver
+    volumes:
+      - ./:/var/www/html
+    ports:
+      - "8081:8081"
 
   mercure:
     # In production, you may want to use the managed version of Mercure, https://mercure.rocks
