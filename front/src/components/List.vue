@@ -21,12 +21,8 @@
               title="Ajouter"
             />
           </template>
-          <b-dropdown-item @click="showModal(list.name, 'edit')"
-            >Renonner</b-dropdown-item
-          >
-          <b-dropdown-item @click="showModal('', 'delete')"
-            >Supprimer</b-dropdown-item
-          >
+          <b-dropdown-item @click="updateList">Renonner</b-dropdown-item>
+          <b-dropdown-item @click="deleteList">Supprimer</b-dropdown-item>
         </b-dropdown>
       </div>
       <!-- HEADER -->
@@ -62,35 +58,6 @@
       </draggable>
       <!-- TASK -->
     </b-card>
-
-    <!-- MODAL -->
-    <b-modal ref="list-edit-modal" hide-footer size="md" :title="modalTitle">
-      <div class="d-block text-center">
-        <b-form-input
-          v-on:keyup.enter="saveList"
-          v-model.trim="listName"
-          v-show="modalTitle == 'Modifier'"
-          autofocus
-        ></b-form-input>
-      </div>
-      <b-button
-        class="mt-3"
-        variant="success"
-        v-show="modalTitle == 'Modifier'"
-        @click="saveList"
-        block
-        >Modifier</b-button
-      >
-      <b-button
-        class="mt-3"
-        variant="danger"
-        v-show="modalTitle == 'Confirmer supression'"
-        @click="deleteList"
-        block
-        >Confirmer</b-button
-      >
-    </b-modal>
-    <!-- MODAL -->
   </div>
 </template>
 
@@ -171,14 +138,6 @@ export default {
         }
         this.$emit('position', added)
       }
-
-      // if (Object.keys(event)[0] === 'removed') {
-      //   let removed = {
-      //     listId: listId,
-      //     index: this.index
-      //   }
-      //   this.$emit('position', removed)
-      // }
     },
 
     savePosition() {
@@ -211,25 +170,44 @@ export default {
       }
     },
 
-    saveList() {
-      if (this.listName.length > 1) {
-        this.list.name = this.listName
-        let data = {
-          name: this.listName
+    updateList() {
+      this.$swal({
+        title: 'Modifier liste',
+        content: {
+          element: 'input',
+          attributes: {
+            type: 'text',
+            value: this.list.name,
+            autofocus: true,
+            className: 'form-control'
+          }
+        },
+        closeOnClickOutside: false,
+        inputValue: 'test',
+        buttons: ['Annuler', 'Modifier'],
+        dangerMode: true
+      }).then((value) => {
+        if (value != null && value != '' && value != this.list.name) {
+          this.list.name = value.trim()
+          let data = {
+            name: this.list.name
+          }
+          this.$swal('Modifié!', '', 'success', { timer: 900 })
+          this.$http.patch(this.$base_url + 'todolist/' + this.list.id, data)
         }
-        this.$http
-          .patch(this.$base_url + 'todolist/' + this.list.id, data)
-          .then((response) => {
-            this.$refs['list-edit-modal'].hide()
-            this.listName = ''
-            this.modalTitle = ''
-            console.log(response)
-          })
-      }
+      })
     },
 
     deleteList() {
-      this.$emit('deleteList', this.index)
+      this.$swal('Confirmer suppression!', '', 'error', {
+        dangerMode: true,
+        buttons: ['Annuler', 'Confirmer']
+      }).then((value) => {
+        if (value) {
+          this.$swal('Supprimé!', '', 'success', { timer: 900 })
+          this.$emit('deleteList', this.index)
+        }
+      })
     }
   }
 }

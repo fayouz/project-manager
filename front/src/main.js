@@ -14,7 +14,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import VueLodash from 'vue-lodash'
-import vuetify from './plugins/vuetify'
+import VueSwal from 'vue-swal'
 
 Vue.config.productionTip = false
 
@@ -28,10 +28,10 @@ Vue.prototype.$base_url =
 
 Vue.use(BootstrapVue)
 Vue.use(VueLodash)
+Vue.use(VueSwal)
 
 new Vue({
   router,
   store,
-  vuetify,
   render: (h) => h(App)
 }).$mount('#app')

@@ -4,6 +4,7 @@
       Ceci est une propriété avec 2WaysBindings :
       <span class="prop">{{ data }}</span>
     </h1>
+    <b-button variant="success" @click="alert">Button</b-button>
   </div>
 </template>
 
@@ -16,7 +17,12 @@ export default {
       objet: 'chocolat'
     }
   },
-  props: ['data']
+  props: ['data'],
+  methods: {
+    alert() {
+      this.$swal('Confirmer suppression!', '', 'error',{dangerMode: true, buttons:['Annuler', 'Confirmer']})
+    }
+  }
 }
 </script>
 
