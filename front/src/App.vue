@@ -1,28 +1,33 @@
 <template>
   <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png" />
-    <HelloWorld msg="Welcome to Your Vue.js App" />
+    <Navbar v-on:input="search"></Navbar>
+    <router-view v-bind:data="searchText" />
   </div>
 </template>
 
 <script>
-import HelloWorld from "./components/HelloWorld.vue";
+import Navbar from './layout/Header'
 
 export default {
-  name: "app",
+  name: 'App',
   components: {
-    HelloWorld
+    Navbar
+  },
+  data() {
+    return {
+      searchText: ' '
+    }
+  },
+  methods: {
+    search: function(text) {
+      this.searchText = text
+    }
   }
-};
+}
 </script>
 
 <style>
-#app {
-  font-family: "Avenir", Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
+body {
+  background-color: rgb(240, 240, 240);
 }
 </style>
