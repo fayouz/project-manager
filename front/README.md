@@ -1,4 +1,4 @@
-# default
+# project-manager
 
 ## Project setup
 ```
