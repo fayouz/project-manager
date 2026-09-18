@@ -111,4 +111,100 @@ class LdapConfigurationTest extends ApiTestCase
         $this->assertResponseStatusCodeSame(400);
         $this->assertJsonContains(['message' => "Échec de la connexion LDAP : Can't contact LDAP server"]);
     }
+
+    public function testUpdateLdapConfigurationMapping(): void
+    {
+        $token = $this->createAdminUser();
+
+        $container = static::getContainer();
+        $em = $container->get('doctrine')->getManager();
+        $config = new LdapConfiguration();
+        $config->setHost('ldap.example.com');
+        $config->setBaseDn('dc=example,dc=com');
+        $em->persist($config);
+        $em->flush();
+
+        $client = static::createClient();
+        $client->request('PUT', '/api/ldap_configurations/' . $config->getId(), [
+            'auth_bearer' => $token,
+            'json' => [
+                'host' => 'ldap.example.com',
+                'baseDn' => 'dc=example,dc=com',
+                'imageAttribute' => 'jpegPhoto',
+                'attributeMapping' => [
+                    'image' => 'jpegPhoto',
+                    'email' => 'mail',
+                    'username' => 'sAMAccountName',
+                ],
+            ],
+            'headers' => [
+                'Content-Type' => 'application/ld+json',
+            ],
+        ]);
+
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertJsonContains([
+            'imageAttribute' => 'jpegPhoto',
+            'attributeMapping' => [
+                'image' => 'jpegPhoto',
+                'email' => 'mail',
+                'username' => 'sAMAccountName',
+            ],
+        ]);
+    }
+
+    public function testUpdateLdapConfigurationRegexFilters(): void
+    {
+        $token = $this->createAdminUser();
+
+        $container = static::getContainer();
+        $em = $container->get('doctrine')->getManager();
+        $config = new LdapConfiguration();
+        $config->setHost('ldap.example.com');
+        $config->setBaseDn('dc=example,dc=com');
+        $em->persist($config);
+        $em->flush();
+
+        $client = static::createClient();
+        $client->request('PUT', '/api/ldap_configurations/' . $config->getId(), [
+            'auth_bearer' => $token,
+            'json' => [
+                'host' => 'ldap.example.com',
+                'baseDn' => 'dc=example,dc=com',
+                'searchFilter' => '(sAMAccountName={username})',
+                'queryRegex' => '^PINF\\d+$',
+                'searchFilterRegex' => '^PINF.*',
+                'searchFilters' => [
+                    [
+                        'attribute' => 'mail',
+                        'pattern' => '.*@bm-energies\\.com$',
+                    ],
+                    [
+                        'attribute' => 'sAMAccountName',
+                        'pattern' => '^PINF\\d+$',
+                    ],
+                ],
+            ],
+            'headers' => [
+                'Content-Type' => 'application/ld+json',
+            ],
+        ]);
+
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertJsonContains([
+            'searchFilter' => '(sAMAccountName={username})',
+            'queryRegex' => '^PINF\\d+$',
+            'searchFilterRegex' => '^PINF.*',
+            'searchFilters' => [
+                [
+                    'attribute' => 'mail',
+                    'pattern' => '.*@bm-energies\\.com$',
+                ],
+                [
+                    'attribute' => 'sAMAccountName',
+                    'pattern' => '^PINF\\d+$',
+                ],
+            ],
+        ]);
+    }
 }

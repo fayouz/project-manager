@@ -142,6 +142,7 @@
             <div class="flex items-start justify-between gap-2">
               <div class="flex items-center gap-3 min-w-0">
                 <UAvatar
+                  :src="getUserAvatar(user)"
                   :text="getInitials(user)"
                   :alt="user.username || user.email"
                   size="md"
@@ -151,10 +152,13 @@
                     class="font-semibold text-base text-neutral-900 dark:text-neutral-100 hover:text-primary cursor-pointer truncate"
                     @click="goToShow(user)"
                   >
-                    {{ user.username || user.email }}
+                    {{ user.displayName || user.username || user.email }}
                   </h3>
                   <p class="text-xs text-neutral-500 dark:text-neutral-400 truncate">
                     {{ user.email }}
+                  </p>
+                  <p v-if="user.title || user.department" class="text-[11px] text-neutral-400 truncate">
+                    {{ [user.title, user.department].filter(Boolean).join(' · ') }}
                   </p>
                 </div>
               </div>
@@ -185,6 +189,13 @@
                 {{ user.isLdap ? 'LDAP' : 'Local' }}
               </UBadge>
             </div>
+
+            <div v-if="user.manager" class="text-xs text-neutral-600 dark:text-neutral-400 flex items-center gap-1.5 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+              <span class="text-neutral-400 font-medium text-[11px]">Manager :</span>
+              <span class="font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                {{ typeof user.manager === 'object' ? (user.manager.displayName || user.manager.username || user.manager.email) : user.manager }}
+              </span>
+            </div>
           </div>
 
           <template #footer>
@@ -193,6 +204,17 @@
                 {{ user['@id'] }}
               </span>
               <div class="flex items-center gap-1">
+                <UButton
+                  v-if="user.isLdap"
+                  variant="ghost"
+                  color="warning"
+                  size="xs"
+                  icon="i-heroicons-arrow-path"
+                  aria-label="Rafraîchir depuis LDAP"
+                  title="Rafraîchir depuis LDAP (image, mail...)"
+                  :loading="refreshingUserId === (getIdFromIri(user['@id']) || user.id)"
+                  @click="handleRefreshLdapUser(user)"
+                />
                 <UButton
                   :to="`/users/${getIdFromIri(user['@id']) || user.id}`"
                   variant="ghost"
@@ -231,6 +253,7 @@
           @edit="openEditModal"
           @show="goToShow"
           @deleted="onDeleted"
+          @refreshed="onUserRefreshed"
         />
       </div>
     </div>
@@ -396,6 +419,68 @@ function getInitials(user: User): string {
     return user.email.slice(0, 2).toUpperCase();
   }
   return "U";
+}
+
+function getUserAvatar(user: User): string | undefined {
+  if (user.avatar) return user.avatar;
+  if (user.image) {
+    return user.image.startsWith("data:")
+      ? user.image
+      : `data:image/jpeg;base64,${user.image}`;
+  }
+  return undefined;
+}
+
+const refreshingUserId = ref<string | number | undefined>(undefined);
+
+async function handleRefreshLdapUser(user: User) {
+  const id = getIdFromIri(user["@id"]) || user.id;
+  if (!id || refreshingUserId.value) return;
+
+  refreshingUserId.value = id;
+  syncFeedback.value = null;
+
+  try {
+    const res = await $fetch<{
+      success: boolean;
+      message: string;
+      user?: User;
+    }>(`${getEntrypoint()}/ldap/users/${id}/refresh`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    });
+
+    if (res.user) {
+      userListStore.updateItem(res.user);
+      onUserRefreshed(res.user);
+      syncFeedback.value = {
+        type: "success",
+        message:
+          res.message ||
+          `Utilisateur "${user.username || user.email}" rafraîchi avec succès depuis LDAP.`,
+      };
+    }
+  } catch (err: any) {
+    syncFeedback.value = {
+      type: "error",
+      message:
+        err?.data?.message ||
+        err?.message ||
+        "Erreur lors du rafraîchissement LDAP de l'utilisateur.",
+    };
+  } finally {
+    refreshingUserId.value = undefined;
+  }
+}
+
+function onUserRefreshed(refreshedUser: User) {
+  userListStore.updateItem(refreshedUser);
+  const refreshedId = Number(getIdFromIri(refreshedUser["@id"]) || refreshedUser.id);
+  if (authStore.user?.id === refreshedId) {
+    authStore.fetchCurrentUser();
+  }
 }
 
 // Actions modales

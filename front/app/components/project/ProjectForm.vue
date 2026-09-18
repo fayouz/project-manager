@@ -71,10 +71,17 @@ const violations = toRef(props, "errors");
 const item = ref<Project>({ ...props.values });
 
 // Charger les organisations disponibles pour la relation
-const { data: orgsData } = await useFetch<any>("organisations", {
-  baseURL: ENTRYPOINT,
-  headers: { Accept: "application/ld+json" },
-});
+const orgsData = ref<any>(null);
+try {
+  const token = useCookie<string | null>("jwt_token").value;
+  const headers: Record<string, string> = {
+    Accept: "application/ld+json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  orgsData.value = await $fetch<any>(`${ENTRYPOINT}/organisations`, { headers });
+} catch {
+  // Non-bloquant pour le formulaire
+}
 
 const orgOptions = computed(() => {
   const members =

@@ -8,6 +8,21 @@ export interface CurrentUser {
   roles: string[];
   type: "local" | "ldap";
   isLdap: boolean;
+  image?: string | null;
+  avatar?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
+  title?: string | null;
+  department?: string | null;
+  managerDn?: string | null;
+  manager?: {
+    id: number;
+    email: string;
+    username?: string;
+    displayName?: string;
+    avatar?: string;
+  } | null;
 }
 
 export const useAuthStore = defineStore("auth", () => {

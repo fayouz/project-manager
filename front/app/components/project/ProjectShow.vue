@@ -595,6 +595,12 @@ if (currentTab.value === "integrations") {
 } else if (currentTab.value === "details") {
   currentTab.value = "settings";
   currentSubTab.value = "general";
+} else if (currentTab.value === "members") {
+  currentTab.value = "settings";
+  currentSubTab.value = "members";
+} else if (currentTab.value === "teams") {
+  currentTab.value = "settings";
+  currentSubTab.value = "teams";
 }
 
 function setTab(tabId: string, subTabId?: string) {
@@ -604,6 +610,12 @@ function setTab(tabId: string, subTabId?: string) {
   } else if (tabId === "details") {
     currentTab.value = "settings";
     currentSubTab.value = "general";
+  } else if (tabId === "members") {
+    currentTab.value = "settings";
+    currentSubTab.value = "members";
+  } else if (tabId === "teams") {
+    currentTab.value = "settings";
+    currentSubTab.value = "teams";
   } else {
     currentTab.value = tabId;
   }
@@ -641,6 +653,12 @@ watch(
     } else if (newTab === "details") {
       currentTab.value = "settings";
       currentSubTab.value = "general";
+    } else if (newTab === "members") {
+      currentTab.value = "settings";
+      currentSubTab.value = "members";
+    } else if (newTab === "teams") {
+      currentTab.value = "settings";
+      currentSubTab.value = "teams";
     } else if (newTab && typeof newTab === "string") {
       currentTab.value = newTab;
     } else if (!newTab) {

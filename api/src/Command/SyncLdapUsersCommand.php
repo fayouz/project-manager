@@ -94,10 +94,6 @@ class SyncLdapUsersCommand extends Command
                 'port' => $ldapPort
             ]);
 
-            $ldap->bind('cn=VISION,cn=Users,dc=groupegdb,dc=local', 'gdb100');
-            dd('faez');
-
-
             // Authentification LDAP
             if ($ldapUser && $ldapPassword) {
                 $ldap->bind($ldapUser, $ldapPassword);

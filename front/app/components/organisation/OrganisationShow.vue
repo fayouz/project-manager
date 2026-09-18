@@ -72,6 +72,12 @@
       </div>
     </div>
   </UCard>
+
+  <div v-if="item && item['@id']" class="mt-6">
+    <UCard>
+      <OrganisationMembers :organisation-iri="item['@id']" />
+    </UCard>
+  </div>
 </template>
 
 <script lang="ts" setup>
@@ -80,6 +86,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useFetchItem } from "~/composables/api";
 import { formatDateTime } from "~/utils/date";
 import type { Organisation } from "~/types/organisation";
+import OrganisationMembers from "./OrganisationMembers.vue";
 
 const props = withDefaults(
   defineProps<{

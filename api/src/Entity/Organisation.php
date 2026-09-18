@@ -23,9 +23,16 @@ class Organisation
     #[ORM\OneToMany(mappedBy: 'organisation', targetEntity: Project::class)]
     private Collection $projects;
 
+    /**
+     * @var Collection<int, OrganisationMember>
+     */
+    #[ORM\OneToMany(targetEntity: OrganisationMember::class, mappedBy: 'organisation', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $members;
+
     public function __construct()
     {
         $this->projects = new ArrayCollection();
+        $this->members = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -48,5 +55,34 @@ class Organisation
     public function getProjects(): Collection
     {
         return $this->projects;
+    }
+
+    /**
+     * @return Collection<int, OrganisationMember>
+     */
+    public function getMembers(): Collection
+    {
+        return $this->members;
+    }
+
+    public function addMember(OrganisationMember $member): static
+    {
+        if (!$this->members->contains($member)) {
+            $this->members->add($member);
+            $member->setOrganisation($this);
+        }
+
+        return $this;
+    }
+
+    public function removeMember(OrganisationMember $member): static
+    {
+        if ($this->members->removeElement($member)) {
+            if ($member->getOrganisation() === $this) {
+                $member->setOrganisation(null);
+            }
+        }
+
+        return $this;
     }
 }

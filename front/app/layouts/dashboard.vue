@@ -42,9 +42,21 @@
         <div v-if="collapsed" class="flex flex-col items-center gap-2 py-1 w-full">
           <UTooltip :text="userName">
             <UAvatar
+              :src="userAvatar"
               :text="userInitials"
               :alt="userName"
               size="sm"
+            />
+          </UTooltip>
+          <UTooltip v-if="isLdapUser" text="Rafraîchir mes infos LDAP">
+            <UButton
+              variant="ghost"
+              color="warning"
+              size="xs"
+              icon="i-heroicons-arrow-path"
+              aria-label="Rafraîchir mes infos LDAP"
+              :loading="isRefreshingSelf"
+              @click="handleRefreshSelf"
             />
           </UTooltip>
           <UButton
@@ -74,19 +86,33 @@
               :name="userName"
               :description="userEmail"
               :avatar="{
+                src: userAvatar,
                 text: userInitials,
                 alt: userName
               }"
               size="sm"
               class="truncate min-w-0"
             />
-            <UBadge
-              :color="isLdapUser ? 'warning' : 'primary'"
-              variant="subtle"
-              size="xs"
-              :label="userBadgeLabel"
-              class="text-[10px] shrink-0 font-medium"
-            />
+            <div class="flex items-center gap-1 shrink-0">
+              <UButton
+                v-if="isLdapUser"
+                variant="ghost"
+                color="warning"
+                size="xs"
+                icon="i-heroicons-arrow-path"
+                aria-label="Rafraîchir mes données LDAP"
+                title="Rafraîchir mes infos LDAP (avatar, email...)"
+                :loading="isRefreshingSelf"
+                @click="handleRefreshSelf"
+              />
+              <UBadge
+                :color="isLdapUser ? 'warning' : 'primary'"
+                variant="subtle"
+                size="xs"
+                :label="userBadgeLabel"
+                class="text-[10px] shrink-0 font-medium"
+              />
+            </div>
           </div>
           <div class="pt-2 border-t border-neutral-200/80 dark:border-neutral-700/80 flex items-center justify-between text-xs">
             <div class="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -113,10 +139,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useAuthStore } from "~/stores/auth";
+import { getEntrypoint } from "~/utils/config";
 
 const authStore = useAuthStore();
+const isRefreshingSelf = ref(false);
 
 const userName = computed(() => {
   return authStore.user?.username || authStore.user?.email || "Utilisateur";
@@ -131,9 +159,40 @@ const userInitials = computed(() => {
   return name.slice(0, 2).toUpperCase();
 });
 
+const userAvatar = computed(() => {
+  if (authStore.user?.avatar) {
+    return authStore.user.avatar;
+  }
+  if (authStore.user?.image) {
+    return authStore.user.image.startsWith("data:")
+      ? authStore.user.image
+      : `data:image/jpeg;base64,${authStore.user.image}`;
+  }
+  return undefined;
+});
+
 const isLdapUser = computed(() => {
   return authStore.user?.isLdap || authStore.user?.type === "ldap";
 });
+
+async function handleRefreshSelf() {
+  if (!authStore.user?.id || isRefreshingSelf.value) return;
+
+  isRefreshingSelf.value = true;
+  try {
+    await $fetch(`${getEntrypoint()}/ldap/users/${authStore.user.id}/refresh`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    });
+    await authStore.fetchCurrentUser();
+  } catch (err: any) {
+    console.error("Erreur lors du rafraîchissement LDAP de l'utilisateur:", err);
+  } finally {
+    isRefreshingSelf.value = false;
+  }
+}
 
 const userBadgeLabel = computed(() => {
   if (authStore.user?.roles?.includes("ROLE_SUPER_ADMIN")) {

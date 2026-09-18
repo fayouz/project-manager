@@ -33,6 +33,24 @@ class MeController extends AbstractController
             'roles' => $user->getRoles(),
             'type' => $user instanceof LocalUser ? 'local' : 'ldap',
             'isLdap' => $user instanceof LdapUser,
+            'image' => $user->getImage(),
+            'avatar' => $user->getAvatar(),
+            'firstName' => $user->getFirstName(),
+            'lastName' => $user->getLastName(),
+            'displayName' => $user->getDisplayName(),
+            'title' => $user->getTitle(),
+            'department' => $user->getDepartment(),
+            'managerDn' => $user->getManagerDn(),
+            'manager' => $user->getManager() ? [
+                'id' => $user->getManager()->getId(),
+                'email' => $user->getManager()->getEmail(),
+                'username' => $user->getManager()->getUsername(),
+                'displayName' => $user->getManager()->getDisplayName() ?: ([
+                    $user->getManager()->getFirstName(),
+                    $user->getManager()->getLastName(),
+                ] ? implode(' ', array_filter([$user->getManager()->getFirstName(), $user->getManager()->getLastName()])) : null),
+                'avatar' => $user->getManager()->getAvatar(),
+            ] : null,
         ]);
     }
 }

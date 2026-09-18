@@ -23,6 +23,7 @@
           :key="refreshKey"
           @edit="onEdit"
           @back="navigateTo('/users')"
+          @refreshed="onRefreshed"
         />
       </div>
     </div>
@@ -81,6 +82,10 @@ function onEdit(item?: User) {
 
 function onUpdated() {
   isEditModalOpen.value = false;
+  refreshKey.value++;
+}
+
+function onRefreshed() {
   refreshKey.value++;
 }
 

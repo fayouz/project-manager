@@ -1,8 +1,7 @@
 import type { PagedCollection } from "~/types/collection";
 import type { FetchAllData, FetchItemData } from "~/types/api";
-import { type Ref, ref } from "vue";
+import { type Ref, ref, isRef } from "vue";
 import type { View } from "~/types/view";
-import type { UseFetchOptions } from "#app";
 import type { SubmissionErrors } from "~/types/error";
 import type { Item } from "~/types/item";
 import { getEntrypoint } from "~/utils/config";
@@ -11,7 +10,23 @@ import { SubmissionError } from "~/utils/error";
 
 const MIME_TYPE = "application/ld+json";
 
-async function useApi<T>(path: string, options: UseFetchOptions<T>) {
+export interface ApiOptions {
+  method?: string;
+  body?: any;
+  params?: Record<string, any>;
+  query?: Record<string, any>;
+  headers?: Record<string, string>;
+  onResponse?: (context: any) => void | Promise<void>;
+  onResponseError?: (context: any) => void | Promise<void>;
+  [key: string]: any;
+}
+
+async function useApi<T>(path: string, options: ApiOptions = {}) {
+  const token = useCookie<string | null>("jwt_token").value;
+  const authHeaders: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+
   let cleanPath = path;
   if (!cleanPath.startsWith("http://") && !cleanPath.startsWith("https://")) {
     if (cleanPath.startsWith("/api/")) {
@@ -23,26 +38,75 @@ async function useApi<T>(path: string, options: UseFetchOptions<T>) {
     }
   }
 
-  const response = await useFetch(cleanPath, {
-    baseURL: getEntrypoint(),
-    mode: "cors",
-    headers: {
-      Accept: MIME_TYPE,
-    },
-    onResponseError({ response }) {
-      const data = response._data;
-      const error =
-        data?.["hydra:description"] ||
-        data?.description ||
-        data?.detail ||
-        response.statusText;
+  // Unwrap potential Vue refs in query/params
+  let queryParams = options.params || options.query;
+  if (queryParams) {
+    const unwrapped: Record<string, any> = {};
+    for (const [k, v] of Object.entries(queryParams)) {
+      const val = isRef(v) ? v.value : v;
+      if (val !== undefined && val !== null && val !== "") {
+        unwrapped[k] = val;
+      }
+    }
+    queryParams = Object.keys(unwrapped).length > 0 ? unwrapped : undefined;
+  }
 
-      throw new Error(error);
-    },
-    ...options,
-  });
+  const data = ref<T | null>(null) as Ref<T | null>;
+  const pending = ref<boolean>(true);
+  const error = ref<Error | null>(null);
 
-  return response;
+  try {
+    const fetchOptions: any = {
+      baseURL: getEntrypoint(),
+      headers: {
+        Accept: MIME_TYPE,
+        ...authHeaders,
+        ...options.headers,
+      },
+      ...options,
+      query: queryParams,
+      params: queryParams,
+      async onResponse(context: any) {
+        if (options.onResponse) {
+          await options.onResponse(context);
+        }
+      },
+      async onResponseError(context: any) {
+        if (context.response?.status === 401 && typeof window !== "undefined") {
+          const tokenCookie = useCookie<string | null>("jwt_token");
+          tokenCookie.value = null;
+          navigateTo("/login");
+        }
+
+        if (options.onResponseError) {
+          await options.onResponseError(context);
+        }
+
+        const resData = context.response?._data;
+        const errMsg =
+          resData?.["hydra:description"] ||
+          resData?.description ||
+          resData?.detail ||
+          context.response?.statusText ||
+          "An error occurred";
+
+        throw new Error(errMsg);
+      },
+    };
+
+    const response = await $fetch.raw<T>(cleanPath, fetchOptions);
+    data.value = response._data as T;
+  } catch (err: any) {
+    error.value = err instanceof Error ? err : new Error(String(err));
+  } finally {
+    pending.value = false;
+  }
+
+  return {
+    data,
+    pending,
+    error,
+  };
 }
 
 export async function useFetchList<T>(
@@ -131,7 +195,7 @@ export async function useCreateItem<T>(resource: string, payload: Item) {
     },
   });
 
-  created.value = data.value as T;
+  created.value = (data.value as T) ?? undefined;
 
   return {
     created,
@@ -175,7 +239,7 @@ export async function useUpdateItem<T>(item: Item, payload: Item) {
     },
   });
 
-  updated.value = data.value as T;
+  updated.value = (data.value as T) ?? undefined;
 
   return {
     updated,
@@ -195,7 +259,11 @@ export async function useDeleteItem(item: Item) {
     };
   }
 
-  const { pending } = await useApi(item["@id"] ?? "", { method: "DELETE" });
+  const { pending, error: apiError } = await useApi(item["@id"] ?? "", { method: "DELETE" });
+
+  if (apiError.value) {
+    error.value = apiError.value.message || String(apiError.value);
+  }
 
   return {
     isLoading: pending,

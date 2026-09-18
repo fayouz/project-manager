@@ -21,6 +21,33 @@
           </div>
         </div>
 
+        <!-- Section Équipe & Membres -->
+        <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800">
+          <p class="px-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1.5">
+            Équipe & Membres
+          </p>
+          <div class="space-y-0.5">
+            <UButton
+              :variant="activeSubTab === 'members' ? 'solid' : 'ghost'"
+              :color="activeSubTab === 'members' ? 'primary' : 'neutral'"
+              size="sm"
+              icon="i-heroicons-users"
+              class="w-full justify-start text-xs font-medium"
+              label="Membres"
+              @click="selectSubTab('members')"
+            />
+            <UButton
+              :variant="activeSubTab === 'teams' ? 'solid' : 'ghost'"
+              :color="activeSubTab === 'teams' ? 'primary' : 'neutral'"
+              size="sm"
+              icon="i-heroicons-user-group"
+              class="w-full justify-start text-xs font-medium"
+              label="Équipes"
+              @click="selectSubTab('teams')"
+            />
+          </div>
+        </div>
+
         <!-- Section Services DevOps & Intégrations -->
         <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800">
           <div class="flex items-center justify-between px-2 mb-1.5">
@@ -189,6 +216,18 @@
           :project-integrations="projectIntegrations"
           @edit="emit('edit-project')"
         />
+      </div>
+
+      <!-- Membres du projet -->
+      <div v-show="activeSubTab === 'members'">
+        <UCard :ui="{ body: 'p-5 sm:p-6' }">
+          <ProjectMembers v-if="project?.['@id']" :project-iri="project['@id']" />
+        </UCard>
+      </div>
+
+      <!-- Équipes du projet -->
+      <div v-show="activeSubTab === 'teams'">
+        <ProjectTeams v-if="project?.['@id']" :project-iri="project['@id']" />
       </div>
 
       <!-- 2. Vue d'ensemble de toutes les intégrations -->
@@ -1096,6 +1135,8 @@ import type { ProjectIntegration } from "~/types/projectIntegration";
 import type { Integration } from "~/types/integration";
 import ProjectDetails from "./ProjectDetails.vue";
 import ProjectIntegrations from "./ProjectIntegrations.vue";
+import ProjectMembers from "./ProjectMembers.vue";
+import ProjectTeams from "./ProjectTeams.vue";
 import { useProjectIntegrationHealthStore } from "~/stores/projectIntegration/health";
 import {
   getIntegration,

@@ -167,10 +167,17 @@ const item = ref<any>({
 });
 
 // Charger la liste des serveurs disponibles
-const { data: serversData } = await useFetch<any>("servers", {
-  baseURL: ENTRYPOINT,
-  headers: { Accept: "application/ld+json" },
-});
+const serversData = ref<any>(null);
+try {
+  const token = useCookie<string | null>("jwt_token").value;
+  const headers: Record<string, string> = {
+    Accept: "application/ld+json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  serversData.value = await $fetch<any>(`${ENTRYPOINT}/servers`, { headers });
+} catch {
+  // Non-bloquant pour le formulaire
+}
 
 const serverMembers = computed<Server[]>(() => {
   return serversData.value?.member || serversData.value?.["hydra:member"] || [];
