@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\Integration;
+use App\Entity\IntegrationParamFactory;
 use App\Entity\Server;
 use App\Integration\Dto\ConnectionTestResult;
 use App\Integration\IntegrationRegistry;
@@ -48,7 +49,17 @@ class IntegrationTestController extends AbstractController
                     sprintf("Type d'intégration '%s' non supporté.", $integration->getType())
                 );
             } else {
-                $result = $connector->testConnection($integration);
+                $payload = json_decode($request->getContent(), true);
+                $parameters = is_array($payload) && isset($payload['parameters']) && is_array($payload['parameters'])
+                    ? $payload['parameters']
+                    : null;
+
+                if ($parameters !== null) {
+                    $param = IntegrationParamFactory::create((string) $integration->getType(), $parameters);
+                    $result = $connector->checkHealth($integration, $param);
+                } else {
+                    $result = $connector->testConnection($integration);
+                }
             }
 
             $integration->setStatus($result->status);

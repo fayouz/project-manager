@@ -17,14 +17,12 @@
       </template>
     </UDashboardNavbar>
 
-    <div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-      <div class="max-w-5xl mx-auto space-y-6">
-        <ProjectShow
-          :key="refreshKey"
-          @edit="onEdit"
-          @back="navigateTo('/projects')"
-        />
-      </div>
+    <div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      <ProjectShow
+        :key="refreshKey"
+        @edit="onEdit"
+        @back="navigateTo('/projects')"
+      />
     </div>
 
     <!-- Modale de Modification du Projet -->

@@ -191,7 +191,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { getEntrypoint } from "~/utils/config";
+import { getEntrypoint, resolveApiUrl } from "~/utils/config";
 import { useAuthStore } from "~/stores/auth";
 
 definePageMeta({
@@ -288,7 +288,7 @@ async function saveConfiguration() {
     }
 
     if (form.value["@id"]) {
-      await $fetch(`${getEntrypoint()}${form.value["@id"].replace('/api', '')}`, {
+      await $fetch(resolveApiUrl(form.value["@id"]), {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${authStore.token}`,

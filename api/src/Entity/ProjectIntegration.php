@@ -13,6 +13,8 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
+use App\Controller\ProjectIntegrationHealthController;
+use App\Controller\ProjectIntegrationLiveDataController;
 use App\Repository\ProjectIntegrationRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -29,6 +31,27 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Put(),
         new Patch(),
         new Delete(),
+        new Post(
+            name: 'project_integration_health',
+            uriTemplate: '/project_integrations/{id}/health',
+            controller: ProjectIntegrationHealthController::class,
+            read: true,
+            status: 200
+        ),
+        new Get(
+            name: 'project_integration_health_get',
+            uriTemplate: '/project_integrations/{id}/health',
+            controller: ProjectIntegrationHealthController::class,
+            read: true,
+            status: 200
+        ),
+        new Get(
+            name: 'project_integration_live_data',
+            uriTemplate: '/project_integrations/{id}/live-data',
+            controller: ProjectIntegrationLiveDataController::class,
+            read: true,
+            status: 200
+        ),
     ],
     normalizationContext: ['groups' => ['project_integration:read', 'integration:read']],
     denormalizationContext: ['groups' => ['project_integration:write']]
@@ -66,6 +89,18 @@ class ProjectIntegration
     #[ORM\Column(type: Types::JSON)]
     #[Groups(['project_integration:read', 'project_integration:write'])]
     private array $parameters = [];
+
+    #[ORM\Column(length: 30, options: ['default' => 'unknown'])]
+    #[Groups(['project_integration:read'])]
+    private string $status = 'unknown';
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['project_integration:read'])]
+    private ?string $statusMessage = null;
+
+    #[ORM\Column(nullable: true)]
+    #[Groups(['project_integration:read'])]
+    private ?\DateTimeImmutable $lastCheckedAt = null;
 
     #[ORM\Column]
     #[Groups(['project_integration:read'])]
@@ -132,6 +167,65 @@ class ProjectIntegration
         $this->parameters = $parameters;
 
         return $this;
+    }
+
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(string $status): static
+    {
+        $this->status = $status;
+
+        return $this;
+    }
+
+    public function getStatusMessage(): ?string
+    {
+        return $this->statusMessage;
+    }
+
+    public function setStatusMessage(?string $statusMessage): static
+    {
+        $this->statusMessage = $statusMessage;
+
+        return $this;
+    }
+
+    public function getLastCheckedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastCheckedAt;
+    }
+
+    public function setLastCheckedAt(?\DateTimeImmutable $lastCheckedAt): static
+    {
+        $this->lastCheckedAt = $lastCheckedAt;
+
+        return $this;
+    }
+
+    public function getIntegrationParam(): ?IntegrationParamInterface
+    {
+        $type = $this->integration?->getType();
+        if ($type === null || $type === '') {
+            return null;
+        }
+
+        return IntegrationParamFactory::create($type, $this->parameters);
+    }
+
+    public function setIntegrationParam(IntegrationParamInterface $param): static
+    {
+        $this->parameters = $param->toArray();
+
+        return $this;
+    }
+
+    #[Groups(['project_integration:read'])]
+    public function getTargetDisplay(): ?string
+    {
+        return $this->getIntegrationParam()?->getTargetDisplay();
     }
 
     public function getCreatedAt(): ?\DateTimeImmutable

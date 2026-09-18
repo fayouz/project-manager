@@ -17,7 +17,18 @@ async function useApi<T>(path: string, options: UseFetchOptions<T>) {
     ? { Authorization: `Bearer ${token}` }
     : {};
 
-  const response = await useFetch(path, {
+  let cleanPath = path;
+  if (!cleanPath.startsWith("http://") && !cleanPath.startsWith("https://")) {
+    if (cleanPath.startsWith("/api/")) {
+      cleanPath = cleanPath.substring(5);
+    } else if (cleanPath === "/api") {
+      cleanPath = "";
+    } else if (cleanPath.startsWith("/")) {
+      cleanPath = cleanPath.substring(1);
+    }
+  }
+
+  const response = await useFetch(cleanPath, {
     baseURL: getEntrypoint(),
     mode: "cors",
     headers: {

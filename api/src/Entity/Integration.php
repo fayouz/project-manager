@@ -8,8 +8,10 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
+use App\Controller\IntegrationProjectsController;
 use App\Controller\IntegrationTestController;
 use App\Repository\IntegrationRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -28,6 +30,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Post(),
         new Put(),
         new Delete(),
+        new Patch(),
         new Post(
             name: 'integration_test_connection',
             uriTemplate: '/integrations/{id}/test',
@@ -40,6 +43,13 @@ use Symfony\Component\Validator\Constraints as Assert;
             uriTemplate: '/integrations/test',
             controller: IntegrationTestController::class,
             read: false,
+            status: 200
+        ),
+        new Get(
+            name: 'integration_get_projects',
+            uriTemplate: '/integrations/{id}/projects',
+            controller: IntegrationProjectsController::class,
+            read: true,
             status: 200
         ),
     ],

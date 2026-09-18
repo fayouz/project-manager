@@ -18,9 +18,15 @@ class ProjectIntegrationApiTest extends ApiTestCase
 {
     protected function setUp(): void
     {
-        $lockFile = self::getContainer()->getParameter('kernel.project_dir').'/config/install.lock';
-        if (!file_exists($lockFile)) {
-            file_put_contents($lockFile, '');
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        if (!$em->getRepository(\App\Entity\User::class)->findOneBy([])) {
+            $user = new \App\Entity\LocalUser();
+            $user->setEmail('test@example.com');
+            $user->setUsername('test');
+            $user->setPassword('dummy_hashed_password');
+            $user->setRoles(['ROLE_ADMIN']);
+            $em->persist($user);
+            $em->flush();
         }
     }
 
@@ -134,6 +140,15 @@ class ProjectIntegrationApiTest extends ApiTestCase
         $this->assertResponseIsSuccessful();
         $getData = $getResponse->toArray();
         $this->assertSame('my-org/my-project', $getData['parameters']['repository']);
+        $this->assertSame('my-org/my-project (main)', $getData['targetDisplay']);
+
+        // 4b. Test Health endpoint on ProjectIntegration
+        $healthResponse = $client->request('GET', $itemIri . '/health');
+        $this->assertResponseIsSuccessful();
+        $healthData = $healthResponse->toArray();
+        $this->assertArrayHasKey('success', $healthData);
+        $this->assertArrayHasKey('status', $healthData);
+        $this->assertSame('my-org/my-project (main)', $healthData['targetDisplay']);
 
         // 5. Filter by project
         $filterResponse = $client->request('GET', '/api/project_integrations?project=' . $project->getId(), [
@@ -168,5 +183,70 @@ class ProjectIntegrationApiTest extends ApiTestCase
         // Verify deleted
         $client->request('GET', $itemIri);
         $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testJenkinsFolderIntegration(): void
+    {
+        $client = static::createClient();
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+
+        $org = new Organisation();
+        $org->setName('Jenkins Test Org ' . uniqid());
+        $em->persist($org);
+
+        $project = new Project();
+        $project->setName('Jenkins Test Project ' . uniqid());
+        $project->setOrganisation($org);
+        $em->persist($project);
+
+        $serverType = $em->getRepository(ServerType::class)->findOneBy([]) ?? new ServerType();
+        if ($serverType->getId() === null) {
+            $serverType->setName('HTTP');
+            $em->persist($serverType);
+        }
+
+        $server = new Server();
+        $server->setName('Jenkins Server ' . uniqid());
+        $server->setHost('jenkins.example.com');
+        $server->setPort(8080);
+        $server->setUsername('jenkins_user');
+        $server->setPassword('jenkins_pass');
+        $server->setType($serverType);
+        $em->persist($server);
+
+        $integration = new Integration();
+        $integration->setName('Jenkins CI ' . uniqid());
+        $integration->setType('jenkins');
+        $integration->setServer($server);
+        $em->persist($integration);
+
+        $em->flush();
+
+        $projectIri = '/api/projects/' . $project->getId();
+        $integrationIri = '/api/integrations/' . $integration->getId();
+
+        $createResponse = $client->request('POST', '/api/project_integrations', [
+            'headers' => [
+                'Content-Type' => 'application/ld+json',
+                'Accept' => 'application/ld+json',
+            ],
+            'json' => [
+                'project' => $projectIri,
+                'integration' => $integrationIri,
+                'parameters' => [
+                    'folder' => 'job/REGAZ/job/RegazScrapper/',
+                    'jobs' => [
+                        ['name' => '1.1.1_Build_TU', 'status' => 'SUCCESS'],
+                        ['name' => '1.1.2_Build_TI', 'status' => 'SUCCESS'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertResponseStatusCodeSame(201);
+        $createdData = $createResponse->toArray();
+        $this->assertSame('job/REGAZ/job/RegazScrapper/', $createdData['parameters']['folder']);
+        $this->assertSame(2, $createdData['parameters']['jobs_count']);
+        $this->assertSame('job/REGAZ/job/RegazScrapper/ (2 jobs)', $createdData['targetDisplay']);
     }
 }

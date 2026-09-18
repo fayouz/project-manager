@@ -102,7 +102,8 @@ class IntegrationApiTest extends ApiTestCase
         $this->assertSame('Automated Test Jenkins', $data['name']);
         $this->assertSame('jenkins', $data['type']);
         $this->assertSame('unknown', $data['status']);
-        $this->assertSame($serverIri, $data['server']);
+        $serverIriFound = is_array($data['server']) ? ($data['server']['@id'] ?? null) : $data['server'];
+        $this->assertSame($serverIri, $serverIriFound);
 
         $iri = $data['@id'];
 
@@ -112,7 +113,8 @@ class IntegrationApiTest extends ApiTestCase
         ]);
         $this->assertResponseIsSuccessful();
         $getData = $getResponse->toArray();
-        $this->assertSame($serverIri, $getData['server']);
+        $getServerIriFound = is_array($getData['server']) ? ($getData['server']['@id'] ?? null) : $getData['server'];
+        $this->assertSame($serverIri, $getServerIriFound);
 
         // Test transient connection endpoint with server
         $transientResponse = $client->request('POST', '/api/integrations/test', [
@@ -196,7 +198,8 @@ class IntegrationApiTest extends ApiTestCase
         $this->assertSame('Mantis Bug Tracker Integration', $data['name']);
         $this->assertSame('mantis', $data['type']);
         $this->assertSame('unknown', $data['status']);
-        $this->assertSame($serverIri, $data['server']);
+        $serverIriFound = is_array($data['server']) ? ($data['server']['@id'] ?? null) : $data['server'];
+        $this->assertSame($serverIri, $serverIriFound);
 
         $iri = $data['@id'];
 
@@ -275,7 +278,8 @@ class IntegrationApiTest extends ApiTestCase
         $this->assertSame('SonarQube Integration', $data['name']);
         $this->assertSame('sonarqube', $data['type']);
         $this->assertSame('unknown', $data['status']);
-        $this->assertSame($serverIri, $data['server']);
+        $serverIriFound = is_array($data['server']) ? ($data['server']['@id'] ?? null) : $data['server'];
+        $this->assertSame($serverIri, $serverIriFound);
 
         $iri = $data['@id'];
 

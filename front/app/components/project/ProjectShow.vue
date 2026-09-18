@@ -1,474 +1,580 @@
 <template>
-  <div class="space-y-6">
-    <!-- Carte Principale : Détails du Projet -->
-    <UCard>
-      <template #header>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center shrink-0">
-              <UIcon name="i-heroicons-folder" class="w-5 h-5" />
-            </div>
-            <div>
-              <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-                {{ item?.name || 'Détails du projet' }}
-              </h3>
-              <p class="text-xs text-neutral-500">Informations générales et configuration</p>
-            </div>
-          </div>
+  <div class="space-y-6 w-full">
+    <!-- 1. En-tête du composant Show -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200 dark:border-neutral-800">
+      <div class="flex items-center gap-3">
+        <UButton
+          v-if="showBack"
+          variant="ghost"
+          color="neutral"
+          icon="i-heroicons-arrow-left"
+          size="sm"
+          title="Retour"
+          @click="emit('back')"
+        />
+        <div>
           <div class="flex items-center gap-2">
-            <UButton
-              v-if="showBack"
-              variant="ghost"
-              color="neutral"
-              icon="i-heroicons-arrow-left"
-              size="sm"
-              label="Retour"
-              @click="handleBack"
-            />
-            <UButton
-              variant="soft"
-              color="primary"
-              icon="i-heroicons-pencil-square"
-              size="sm"
-              label="Modifier"
-              @click="emit('edit', item)"
-            />
-          </div>
-        </div>
-      </template>
-
-      <div v-if="isLoading" class="flex justify-center p-6">
-        <UIcon name="i-heroicons-arrow-path" class="size-6 animate-spin text-primary" />
-      </div>
-
-      <UAlert
-        v-if="error"
-        color="error"
-        variant="subtle"
-        icon="i-heroicons-exclamation-triangle"
-        :title="error"
-        class="mb-4"
-      />
-
-      <div v-if="item" class="divide-y divide-neutral-200 dark:divide-neutral-800">
-        <div class="py-2.5 sm:grid sm:grid-cols-3 sm:gap-4 items-center">
-          <dt class="text-xs font-medium text-neutral-500 uppercase tracking-wider">Identifiant IRI</dt>
-          <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0 font-mono text-xs">
-            {{ item['@id'] }}
-          </dd>
-        </div>
-        <div class="py-2.5 sm:grid sm:grid-cols-3 sm:gap-4 items-center">
-          <dt class="text-xs font-medium text-neutral-500 uppercase tracking-wider">Nom du projet</dt>
-          <dd class="mt-1 text-sm font-medium text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-            {{ item.name }}
-          </dd>
-        </div>
-        <div class="py-2.5 sm:grid sm:grid-cols-3 sm:gap-4 items-center">
-          <dt class="text-xs font-medium text-neutral-500 uppercase tracking-wider">Organisation</dt>
-          <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-            {{ formatOrganisation(item.organisation) }}
-          </dd>
-        </div>
-      </div>
-    </UCard>
-
-    <!-- Carte Intégrations Associées -->
-    <UCard>
-      <template #header>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <UIcon name="i-heroicons-puzzle-piece" class="size-5 text-primary-500" />
-            <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-              Intégrations associées
-            </h3>
+            <h1 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+              {{ item?.name || 'Détails du projet' }}
+            </h1>
             <UBadge color="primary" variant="subtle" size="xs">
-              {{ projectIntegrations.length }}
+              Projet
             </UBadge>
           </div>
-          <UButton
-            color="primary"
-            variant="soft"
-            size="xs"
-            icon="i-heroicons-plus"
-            label="Associer une intégration"
-            @click="openLinkModal()"
-          />
-        </div>
-      </template>
-
-      <!-- Chargement des intégrations -->
-      <div v-if="isLoadingIntegrations" class="flex justify-center items-center py-8 gap-3">
-        <UIcon name="i-heroicons-arrow-path" class="size-5 animate-spin text-primary" />
-        <span class="text-sm text-neutral-500">Chargement des intégrations...</span>
-      </div>
-
-      <!-- Erreur de chargement -->
-      <UAlert
-        v-else-if="integrationError"
-        color="error"
-        variant="subtle"
-        icon="i-heroicons-exclamation-triangle"
-        :title="integrationError"
-        class="mb-4"
-      />
-
-      <!-- Aucune intégration associée -->
-      <div
-        v-else-if="projectIntegrations.length === 0"
-        class="text-center py-8 px-4 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl space-y-3"
-      >
-        <UIcon name="i-heroicons-link-slash" class="mx-auto size-10 text-neutral-400" />
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-            Aucune intégration associée à ce projet
-          </h4>
-          <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-md mx-auto">
-            Connectez ce projet à des outils externes (Gitea, SonarQube, Jenkins, Mantis) et configurez les paramètres spécifiques (chemin de dépôt, clé de projet, etc.).
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Tableau de bord, détails et services DevOps associés
           </p>
         </div>
+      </div>
+
+      <div class="flex items-center gap-2">
         <UButton
-          size="xs"
           color="primary"
+          variant="outline"
+          size="sm"
           icon="i-heroicons-plus"
-          label="Associer une intégration maintenant"
+          label="Associer un service"
           @click="openLinkModal()"
+        />
+        <UButton
+          color="primary"
+          variant="solid"
+          size="sm"
+          icon="i-heroicons-pencil-square"
+          label="Modifier le projet"
+          @click="emit('edit', item)"
+        />
+      </div>
+    </div>
+
+    <!-- 2. Sous-Menu de navigation (Tabs du Show) -->
+    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-2">
+      <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
+        <UButton
+          v-for="tab in subMenuTabs"
+          :key="tab.id"
+          :variant="currentTab === tab.id ? 'solid' : 'ghost'"
+          :color="currentTab === tab.id ? 'primary' : 'neutral'"
+          size="sm"
+          :icon="tab.icon"
+          class="shrink-0 font-medium transition"
+          @click="setTab(tab.id)"
+        >
+          <span>{{ tab.label }}</span>
+          <UBadge
+            v-if="tab.badge !== undefined"
+            :color="currentTab === tab.id ? 'neutral' : (tab.badgeColor || 'neutral')"
+            variant="subtle"
+            size="xs"
+            class="ml-1 text-[10px]"
+          >
+            {{ tab.badge }}
+          </UBadge>
+        </UButton>
+      </div>
+    </div>
+
+    <!-- Erreur globale si chargement échoue -->
+    <UAlert
+      v-if="error"
+      color="error"
+      title="Erreur de chargement"
+      :description="error"
+      icon="i-heroicons-exclamation-triangle"
+    />
+
+    <!-- État de chargement principal -->
+    <div v-if="isLoading" class="p-12 text-center text-neutral-500">
+      <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto mb-3 text-primary-500" />
+      <p class="text-sm font-medium">Chargement des données du projet...</p>
+    </div>
+
+    <!-- 3. Contenu de l'onglet actif -->
+    <div v-else-if="item" class="space-y-6">
+      <!-- Onglet 1 : Tableau de bord (Mini Dashboard) -->
+      <div v-show="currentTab === 'dashboard'">
+        <ProjectDashboard
+          :project="item"
+          :project-integrations="projectIntegrations"
+          :all-integrations="allIntegrations"
+          @switch-tab="setTab"
+          @link-tool="openLinkModal"
+          @edit-pi="openEditModal"
+          @edit-project="emit('edit', item)"
         />
       </div>
 
-      <!-- Liste des intégrations liées -->
-      <div v-else class="space-y-4">
-        <div
-          v-for="pi in projectIntegrations"
-          :key="pi['@id'] || pi.id"
-          class="border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 bg-neutral-50/50 dark:bg-neutral-900/50 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
-        >
-          <!-- En-tête de l'intégration liée -->
-          <div class="flex items-start justify-between gap-3 flex-wrap">
-            <div class="flex items-center gap-3">
-              <div
-                class="size-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs"
-                :class="getTypeBgClass(getIntegrationType(pi))"
-              >
-                <UIcon :name="getTypeIcon(getIntegrationType(pi))" class="size-5" />
+      <!-- Onglet 2 : Gitea (Contenu) -->
+      <div v-show="currentTab === 'gitea'">
+        <ProjectGitea
+          :project="item"
+          :project-integration="giteaPi"
+          :all-integrations="allIntegrations"
+          @configure="setTab('settings', 'gitea')"
+        />
+      </div>
+
+      <!-- Onglet 3 : SonarQube (Contenu) -->
+      <div v-show="currentTab === 'sonarqube'">
+        <ProjectSonarQube
+          :project="item"
+          :project-integration="sonarPi"
+          :all-integrations="allIntegrations"
+          @configure="setTab('settings', 'sonarqube')"
+        />
+      </div>
+
+      <!-- Onglet 4 : Mantis BT (Contenu) -->
+      <div v-show="currentTab === 'mantis'">
+        <ProjectMantis
+          :project="item"
+          :project-integration="mantisPi"
+          :all-integrations="allIntegrations"
+          @configure="setTab('settings', 'mantis')"
+        />
+      </div>
+
+      <!-- Onglet 5 : Jenkins CI (Contenu) -->
+      <div v-show="currentTab === 'jenkins'">
+        <ProjectJenkins
+          :project="item"
+          :project-integration="jenkinsPi"
+          @configure="setTab('settings', 'jenkins')"
+        />
+      </div>
+
+      <!-- Onglet 6 : Paramètres (Sous-layout avec menu vertical regroupant les intégrations) -->
+      <div v-show="currentTab === 'settings'">
+        <ProjectSettings
+          :project="item"
+          :project-integrations="projectIntegrations"
+          :all-integrations="allIntegrations"
+          :initial-sub-tab="currentSubTab"
+          :is-loading="isLoadingIntegrations"
+          @create-integration="openLinkModal"
+          @edit-integration="openEditModal"
+          @unlink-integration="handleUnlink"
+          @tested="loadProjectIntegrations"
+          @edit-project="emit('edit', item)"
+          @subtab-changed="onSubTabChanged"
+        />
+      </div>
+    </div>
+
+    <!-- 4. Modale d'association / modification d'une intégration -->
+    <UModal
+      v-model:open="isModalOpen"
+      :title="modalMode === 'create' ? 'Associer un service DevOps' : 'Modifier les paramètres'"
+      :description="modalMode === 'create' ? 'Sélectionnez un service et configurez les paramètres de liaison.' : 'Mettez à jour les paramètres spécifiques du connecteur.'"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <!-- Alerte d'erreur de formulaire -->
+          <UAlert
+            v-if="formError"
+            color="error"
+            :title="formError"
+            icon="i-heroicons-exclamation-triangle"
+            size="sm"
+          />
+
+          <!-- Choix de l'intégration (en création uniquement) -->
+          <div v-if="modalMode === 'create'" class="space-y-1.5">
+            <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              Service / Outil à associer <span class="text-error-500">*</span>
+            </label>
+            <USelect
+              v-model="formIntegrationIri"
+              :items="availableIntegrationOptions"
+              class="w-full"
+              placeholder="Sélectionner une intégration"
+            />
+          </div>
+
+          <div v-else class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs flex items-center justify-between">
+            <span class="text-neutral-500">Service :</span>
+            <span class="font-bold text-neutral-900 dark:text-neutral-100">{{ selectedPiIntegrationName }}</span>
+          </div>
+
+          <!-- Champs de configuration dédiés selon le type -->
+          <div v-if="selectedIntegrationType === 'gitea'" class="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+            <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+              <UIcon name="i-heroicons-code-bracket" class="w-4 h-4 text-amber-500" />
+              Paramètres Gitea
+            </p>
+
+            <div class="space-y-1">
+              <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                Chemin du dépôt (ex: <code>organisation/projet</code>)
+              </label>
+              <UInput
+                v-model="formParamFields.repository"
+                placeholder="ex: my-org/my-repo"
+                class="w-full font-mono text-xs"
+              />
+            </div>
+
+            <div class="space-y-1">
+              <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                Branche par défaut
+              </label>
+              <UInput
+                v-model="formParamFields.branch"
+                placeholder="main"
+                class="w-full font-mono text-xs"
+              />
+            </div>
+          </div>
+
+          <div v-else-if="selectedIntegrationType === 'sonarqube'" class="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+            <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+              <UIcon name="i-heroicons-shield-check" class="w-4 h-4 text-blue-500" />
+              Paramètres SonarQube
+            </p>
+
+            <div class="space-y-1">
+              <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                Clé de projet SonarQube (<code>project_key</code>)
+              </label>
+              <UInput
+                v-model="formParamFields.project_key"
+                placeholder="ex: my-project-key"
+                class="w-full font-mono text-xs"
+              />
+            </div>
+          </div>
+
+          <div v-else-if="selectedIntegrationType === 'mantis'" class="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                <UIcon name="i-heroicons-bug-ant" class="w-4 h-4 text-emerald-500" />
+                Paramètres Mantis BT
+              </p>
+              <div class="flex items-center gap-2">
+                <UButton
+                  v-if="!isManualMantisInput"
+                  variant="ghost"
+                  color="neutral"
+                  size="xs"
+                  icon="i-heroicons-arrow-path"
+                  :loading="isLoadingMantisProjects"
+                  title="Actualiser la liste des projets Mantis"
+                  @click="reloadMantisProjects"
+                />
+                <UButton
+                  variant="link"
+                  color="neutral"
+                  size="xs"
+                  :label="isManualMantisInput ? 'Choisir dans la liste' : 'Saisir un ID manuellement'"
+                  @click="isManualMantisInput = !isManualMantisInput"
+                />
               </div>
-              <div>
+            </div>
+
+            <!-- Cas 1 : Saisie manuelle de l'ID -->
+            <div v-if="isManualMantisInput" class="space-y-1">
+              <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                Identifiant du projet Mantis (<code>project_id</code>)
+              </label>
+              <UInput
+                v-model="formParamFields.project_id"
+                placeholder="ex: 425"
+                class="w-full font-mono text-xs"
+              />
+              <p class="text-[11px] text-neutral-400">
+                Saisissez le numéro d'identifiant numérique du projet Mantis.
+              </p>
+            </div>
+
+            <!-- Cas 2 : Sélection dans la liste déroulante -->
+            <div v-else class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                  Sélection du projet Mantis <span class="text-error-500">*</span>
+                </label>
+                <span v-if="formParamFields.project_id" class="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                  ID : <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ formParamFields.project_id }}</span>
+                </span>
+              </div>
+
+              <!-- Erreur de chargement des projets -->
+              <div v-if="mantisProjectsError" class="space-y-2">
+                <UAlert
+                  color="warning"
+                  variant="subtle"
+                  title="Impossible de récupérer les projets Mantis"
+                  :description="mantisProjectsError"
+                  icon="i-heroicons-exclamation-triangle"
+                  size="xs"
+                />
                 <div class="flex items-center gap-2">
-                  <h4 class="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
-                    {{ getIntegrationName(pi) }}
-                  </h4>
-                  <UBadge
-                    :color="getTypeBadgeColor(getIntegrationType(pi))"
-                    variant="subtle"
+                  <UButton
                     size="xs"
-                    class="font-mono text-[11px]"
-                  >
-                    {{ getIntegrationType(pi)?.toUpperCase() }}
-                  </UBadge>
+                    color="primary"
+                    variant="soft"
+                    icon="i-heroicons-arrow-path"
+                    label="Réessayer"
+                    :loading="isLoadingMantisProjects"
+                    @click="reloadMantisProjects"
+                  />
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    label="Passer en saisie manuelle"
+                    @click="isManualMantisInput = true"
+                  />
                 </div>
-                <div class="flex items-center gap-2 mt-0.5 text-xs text-neutral-500">
-                  <span v-if="getServerHost(pi)" class="flex items-center gap-1">
-                    <UIcon name="i-heroicons-server" class="size-3.5" />
-                    {{ getServerHost(pi) }}
-                  </span>
-                  <span v-if="getIntegrationStatus(pi)" class="flex items-center gap-1">
-                    <span
-                      class="size-2 rounded-full inline-block"
-                      :class="getStatusDotClass(getIntegrationStatus(pi))"
-                    />
-                    {{ getStatusLabel(getIntegrationStatus(pi)) }}
+              </div>
+
+              <!-- Liste déroulante des projets -->
+              <div v-else class="space-y-1">
+                <USelectMenu
+                  v-model="formParamFields.project_id"
+                  :items="mantisSelectItems"
+                  value-key="value"
+                  label-key="label"
+                  :loading="isLoadingMantisProjects"
+                  :disabled="isLoadingMantisProjects"
+                  placeholder="Rechercher ou sélectionner un projet Mantis..."
+                  icon="i-heroicons-bug-ant"
+                  class="w-full"
+                />
+                <div class="flex items-center justify-between text-[11px] text-neutral-400">
+                  <span>{{ mantisSelectItems.length }} projet(s) disponible(s)</span>
+                  <span v-if="isLoadingMantisProjects" class="flex items-center gap-1 text-emerald-600">
+                    <UIcon name="i-heroicons-arrow-path" class="w-3 h-3 animate-spin" />
+                    Chargement des projets...
                   </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Boutons d'action -->
-            <div class="flex items-center gap-1.5 ml-auto">
-              <UButton
-                v-if="getExternalUrl(pi)"
-                as="a"
-                :href="getExternalUrl(pi)!"
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="soft"
-                color="primary"
-                size="xs"
-                icon="i-heroicons-arrow-top-right-on-square"
-                label="Ouvrir dans l'outil"
+          <div v-else-if="selectedIntegrationType === 'jenkins'" class="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                <UIcon name="i-heroicons-arrow-path-rounded-square" class="w-4 h-4 text-sky-500" />
+                Dossier des jobs Jenkins
+              </p>
+              <div class="flex items-center gap-2">
+                <UButton
+                  v-if="!isManualJenkinsInput"
+                  variant="ghost"
+                  color="neutral"
+                  size="xs"
+                  icon="i-heroicons-arrow-path"
+                  :loading="isLoadingJenkinsFolders"
+                  title="Actualiser la liste des dossiers Jenkins"
+                  @click="reloadJenkinsFolders"
+                />
+                <UButton
+                  variant="link"
+                  color="neutral"
+                  size="xs"
+                  :label="isManualJenkinsInput ? 'Choisir dans la liste' : 'Saisir manuellement le dossier'"
+                  @click="isManualJenkinsInput = !isManualJenkinsInput"
+                />
+              </div>
+            </div>
+
+            <!-- Mode 1 : Saisie manuelle du chemin du dossier -->
+            <div v-if="isManualJenkinsInput" class="space-y-2">
+              <div class="space-y-1">
+                <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                  Chemin du dossier Jenkins (ex: <code>job/REGAZ/job/RegazScrapper/</code> ou <code>REGAZ/RegazScrapper</code>)
+                </label>
+                <div class="flex items-center gap-2">
+                  <UInput
+                    v-model="formParamFields.folder"
+                    placeholder="ex: job/REGAZ/job/RegazScrapper/"
+                    class="w-full font-mono text-xs"
+                    @change="onJenkinsFolderChanged(formParamFields.folder)"
+                    @blur="onJenkinsFolderChanged(formParamFields.folder)"
+                  />
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                    icon="i-heroicons-magnifying-glass"
+                    :loading="isLoadingJenkinsJobs"
+                    title="Détecter les jobs"
+                    @click="onJenkinsFolderChanged(formParamFields.folder)"
+                  />
+                </div>
+              </div>
+              <p class="text-[11px] text-neutral-400">
+                Saisissez le chemin du dossier sur Jenkins. Tous les jobs contenus dans ce dossier seront automatiquement référencés.
+              </p>
+            </div>
+
+            <!-- Mode 2 : Menu déroulant avec recherche dynamique -->
+            <div v-else class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                  Sélection du dossier Jenkins <span class="text-error-500">*</span>
+                </label>
+                <span v-if="formParamFields.folder" class="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 truncate max-w-[200px]">
+                  {{ formParamFields.folder }}
+                </span>
+              </div>
+
+              <USelectMenu
+                :model-value="formParamFields.folder"
+                :items="jenkinsSelectItems"
+                value-key="value"
+                searchable
+                searchable-placeholder="Rechercher un dossier (ex: REGAZ)..."
+                placeholder="Rechercher ou sélectionner un dossier Jenkins..."
+                icon="i-heroicons-folder"
+                class="w-full"
+                @update:model-value="onJenkinsFolderChanged"
               />
+              <div class="flex items-center justify-between text-[11px] text-neutral-400">
+                <span>{{ jenkinsSelectItems.length }} dossier(s) disponible(s)</span>
+                <span v-if="isLoadingJenkinsFolders" class="flex items-center gap-1 text-sky-600">
+                  <UIcon name="i-heroicons-arrow-path" class="w-3 h-3 animate-spin" />
+                  Chargement des dossiers...
+                </span>
+              </div>
+            </div>
+
+            <!-- Détection et prévisualisation des jobs référencés -->
+            <div v-if="isLoadingJenkinsJobs" class="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/40 text-xs text-sky-700 dark:text-sky-300 flex items-center gap-2">
+              <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin shrink-0" />
+              <span>Interrogation de Jenkins et référencement des jobs du dossier...</span>
+            </div>
+
+            <div v-else-if="discoveredJenkinsJobs.length > 0" class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/80 space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+                  {{ discoveredJenkinsJobs.length }} job(s) référencé(s) dans le connecteur :
+                </span>
+                <UBadge color="success" variant="subtle" size="xs">
+                  Prêt à enregistrer
+                </UBadge>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap max-h-32 overflow-y-auto pr-1">
+                <UBadge
+                  v-for="job in discoveredJenkinsJobs"
+                  :key="job.name"
+                  color="neutral"
+                  variant="outline"
+                  size="xs"
+                  class="font-mono text-[11px]"
+                >
+                  {{ job.displayName || job.name }}
+                </UBadge>
+              </div>
+            </div>
+
+            <div v-else-if="formParamFields.folder && !isLoadingJenkinsJobs" class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-700 dark:text-amber-300 flex items-center gap-2">
+              <UIcon name="i-heroicons-information-circle" class="w-4 h-4 shrink-0" />
+              <span>Les jobs de ce dossier seront automatiquement scannés et enregistrés dans le connecteur lors de la validation.</span>
+            </div>
+          </div>
+
+          <!-- Paramètres personnalisés / avancés -->
+          <div class="pt-2 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Paramètres personnalisés additionnels
+              </span>
               <UButton
-                variant="ghost"
-                color="neutral"
                 size="xs"
-                icon="i-heroicons-pencil-square"
-                aria-label="Modifier les paramètres"
-                title="Modifier les paramètres"
-                @click="openEditModal(pi)"
+                variant="ghost"
+                color="primary"
+                icon="i-heroicons-plus"
+                label="Ajouter une paire"
+                @click="addCustomParamRow"
+              />
+            </div>
+
+            <div v-if="customParamRows.length === 0" class="text-[11px] text-neutral-400 italic">
+              Aucun paramètre personnalisé supplémentaire.
+            </div>
+
+            <div
+              v-for="(row, idx) in customParamRows"
+              :key="idx"
+              class="flex items-center gap-2"
+            >
+              <UInput
+                v-model="row.key"
+                placeholder="Clé (ex: env)"
+                size="xs"
+                class="w-1/2 font-mono"
+              />
+              <UInput
+                v-model="row.value"
+                placeholder="Valeur"
+                size="xs"
+                class="w-1/2 font-mono"
               />
               <UButton
                 variant="ghost"
                 color="error"
                 size="xs"
                 icon="i-heroicons-trash"
-                aria-label="Dissocier"
-                title="Dissocier l'intégration"
-                :loading="deletingId === pi['@id']"
-                @click="handleUnlink(pi)"
+                @click="removeCustomParamRow(idx)"
               />
             </div>
           </div>
-
-          <!-- Section des Paramètres spécifiques -->
-          <div class="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-800">
-            <h5 class="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <UIcon name="i-heroicons-adjustments-horizontal" class="size-3.5" />
-              Paramètres spécifiques configurés
-            </h5>
-
-            <div v-if="hasParameters(pi)" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              <!-- Paramètre principal selon le type -->
-              <div
-                v-for="(val, key) in (pi.parameters || {})"
-                :key="key"
-                class="flex items-start justify-between p-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700/60"
-              >
-                <div class="space-y-0.5">
-                  <span class="text-neutral-500 text-[11px] font-medium block">
-                    {{ formatParamKey(String(key), getIntegrationType(pi)) }}
-                  </span>
-                  <span class="font-mono font-medium text-neutral-900 dark:text-neutral-100 select-all">
-                    {{ val }}
-                  </span>
-                </div>
-                <UBadge
-                  v-if="isPrimaryParam(String(key), getIntegrationType(pi))"
-                  color="primary"
-                  variant="outline"
-                  size="xs"
-                  class="text-[10px]"
-                >
-                  Principal
-                </UBadge>
-              </div>
-            </div>
-
-            <div v-else class="text-xs text-neutral-400 italic py-1">
-              Aucun paramètre spécifique configuré (intégration globale).
-            </div>
-          </div>
         </div>
-      </div>
-    </UCard>
+      </template>
 
-    <!-- Modale d'Association / Modification d'une Intégration de Projet -->
-    <UModal
-      v-model:open="isModalOpen"
-      :title="modalMode === 'create' ? 'Associer une intégration au projet' : 'Modifier les paramètres d\'intégration'"
-    >
-      <template #body>
-        <form @submit.prevent="submitModal" class="space-y-4">
-          <UAlert
-            v-if="formError"
-            color="error"
-            variant="subtle"
-            icon="i-heroicons-exclamation-triangle"
-            :title="formError"
+      <template #footer>
+        <div class="flex items-center justify-end gap-2 w-full">
+          <UButton
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            label="Annuler"
+            @click="isModalOpen = false"
           />
-
-          <!-- Sélection de l'intégration (seulement en création) -->
-          <UFormField
-            v-if="modalMode === 'create'"
-            label="Intégration externe"
-            description="Sélectionnez l'outil externe à associer à ce projet."
-            required
-          >
-            <USelect
-              v-model="formIntegrationIri"
-              :items="availableIntegrationOptions"
-              placeholder="Sélectionner une intégration..."
-              class="w-full"
-            />
-          </UFormField>
-
-          <div v-else class="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex items-center gap-3">
-            <div
-              class="size-8 rounded-lg flex items-center justify-center shrink-0"
-              :class="getTypeBgClass(selectedIntegrationType)"
-            >
-              <UIcon :name="getTypeIcon(selectedIntegrationType)" class="size-4" />
-            </div>
-            <div>
-              <div class="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
-                {{ selectedPiIntegrationName }}
-              </div>
-              <div class="text-xs text-neutral-500 font-mono">
-                Type : {{ selectedIntegrationType?.toUpperCase() }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Champs de paramètres dynamiques selon le type d'intégration -->
-          <div v-if="selectedIntegrationType" class="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
-            <h4 class="text-xs font-semibold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-              Paramètres spécifiques au connecteur ({{ selectedIntegrationType?.toUpperCase() }})
-            </h4>
-
-            <!-- GITEA : Chemin du dépôt & branche -->
-            <template v-if="selectedIntegrationType === 'gitea'">
-              <UFormField
-                label="Chemin Gitea du projet (Dépôt)"
-                description="Exemple : organisation/nom-du-projet ou utilisateur/depot"
-                required
-              >
-                <UInput
-                  v-model="formParamFields.repository"
-                  placeholder="bm-energies/scrapper"
-                  icon="i-heroicons-code-bracket"
-                  class="w-full font-mono text-sm"
-                />
-              </UFormField>
-
-              <UFormField
-                label="Branche par défaut (optionnel)"
-                description="Exemple : main, master ou develop"
-              >
-                <UInput
-                  v-model="formParamFields.branch"
-                  placeholder="main"
-                  icon="i-heroicons-variable"
-                  class="w-full font-mono text-sm"
-                />
-              </UFormField>
-            </template>
-
-            <!-- SONARQUBE : Clé du projet -->
-            <template v-else-if="selectedIntegrationType === 'sonarqube'">
-              <UFormField
-                label="Clé du projet SonarQube (Project Key)"
-                description="Exemple : bme.scrapper ou identifiant unique dans SonarQube"
-                required
-              >
-                <UInput
-                  v-model="formParamFields.project_key"
-                  placeholder="bme.scrapper"
-                  icon="i-heroicons-shield-check"
-                  class="w-full font-mono text-sm"
-                />
-              </UFormField>
-            </template>
-
-            <!-- JENKINS : Nom du Job -->
-            <template v-else-if="selectedIntegrationType === 'jenkins'">
-              <UFormField
-                label="Nom du Job Jenkins"
-                description="Exemple : scrapper-build ou pipeline-master"
-                required
-              >
-                <UInput
-                  v-model="formParamFields.job"
-                  placeholder="scrapper-pipeline"
-                  icon="i-heroicons-arrow-path-rounded-square"
-                  class="w-full font-mono text-sm"
-                />
-              </UFormField>
-            </template>
-
-            <!-- MANTIS : ID ou Nom du projet -->
-            <template v-else-if="selectedIntegrationType === 'mantis'">
-              <UFormField
-                label="ID ou Nom du projet Mantis"
-                description="Exemple : 29 ou Scrapper"
-                required
-              >
-                <UInput
-                  v-model="formParamFields.project_id"
-                  placeholder="Scrapper"
-                  icon="i-heroicons-bug-ant"
-                  class="w-full font-mono text-sm"
-                />
-              </UFormField>
-            </template>
-
-            <!-- Paramètres Personnalisés Additionnels -->
-            <div class="pt-2">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-medium text-neutral-500">Autres paramètres personnalisés</span>
-                <UButton
-                  variant="ghost"
-                  color="neutral"
-                  size="xs"
-                  icon="i-heroicons-plus"
-                  label="Ajouter un paramètre"
-                  @click="addCustomParamRow"
-                />
-              </div>
-
-              <div v-for="(row, idx) in customParamRows" :key="idx" class="flex items-center gap-2 mb-2">
-                <UInput
-                  v-model="row.key"
-                  placeholder="Clé (ex: env)"
-                  size="xs"
-                  class="w-1/3 font-mono"
-                />
-                <UInput
-                  v-model="row.value"
-                  placeholder="Valeur (ex: production)"
-                  size="xs"
-                  class="flex-1 font-mono"
-                />
-                <UButton
-                  variant="ghost"
-                  color="error"
-                  size="xs"
-                  icon="i-heroicons-trash"
-                  aria-label="Supprimer"
-                  @click="removeCustomParamRow(idx)"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Boutons du formulaire -->
-          <div class="flex items-center justify-end gap-3 pt-4 border-t border-neutral-200 dark:border-neutral-800">
-            <UButton
-              variant="ghost"
-              color="neutral"
-              label="Annuler"
-              @click="isModalOpen = false"
-            />
-            <UButton
-              type="submit"
-              color="primary"
-              :loading="isSubmitting"
-              :label="modalMode === 'create' ? 'Associer l\'intégration' : 'Enregistrer les modifications'"
-            />
-          </div>
-        </form>
+          <UButton
+            color="primary"
+            size="sm"
+            :loading="isSubmitting"
+            :label="modalMode === 'create' ? 'Associer le service' : 'Enregistrer'"
+            @click="submitModal"
+          />
+        </div>
       </template>
     </UModal>
   </div>
 </template>
 
-<script lang="ts" setup>
-import { ref, watch, computed, onMounted } from "vue";
+<script setup lang="ts">
+import { computed, nextTick, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useFetchItem } from "~/composables/api";
-import { formatDateTime } from "~/utils/date";
-import { getIdFromIri } from "~/utils/resource";
-import { getEntrypoint } from "~/utils/config";
 import type { Project } from "~/types/project";
-import type { ProjectIntegration } from "~/types/projectintegration";
+import type { ProjectIntegration } from "~/types/projectIntegration";
 import type { Integration } from "~/types/integration";
+import { resolveApiUrl } from "~/utils/config";
+import { useFetchItem } from "~/composables/api";
+import { getIdFromIri } from "~/utils/resource";
+import { useIntegrationProjectsStore } from "~/stores/integration/projects";
+import {
+  getIntegration,
+  getIntegrationType,
+  getIntegrationName,
+} from "~/utils/integration";
 
-const props = withDefaults(
-  defineProps<{
-    id?: string;
-    item?: Project;
-    showBack?: boolean;
-  }>(),
-  {
-    showBack: true,
-  }
-);
+// Composants dédiés
+import ProjectDashboard from "./ProjectDashboard.vue";
+import ProjectGitea from "./ProjectGitea.vue";
+import ProjectSonarQube from "./ProjectSonarQube.vue";
+import ProjectMantis from "./ProjectMantis.vue";
+import ProjectJenkins from "./ProjectJenkins.vue";
+import ProjectSettings from "./ProjectSettings.vue";
+
+const props = defineProps<{
+  id?: string;
+  item?: Project;
+  showBack?: boolean;
+}>();
 
 const emit = defineEmits<{
   (e: "back"): void;
@@ -478,215 +584,511 @@ const emit = defineEmits<{
 const route = useRoute();
 const router = useRouter();
 
-const currentId = computed(() => {
-  return props.id || (route.params.id ? String(route.params.id) : undefined);
-});
+// Onglet actif
+const currentTab = ref<string>((route.query.tab as string) || "dashboard");
+const currentSubTab = ref<string>((route.query.subtab as string) || "integrations");
 
-function handleBack() {
-  emit("back");
-  router.push("/projects");
+// Alias de compatibilité ascendante
+if (currentTab.value === "integrations") {
+  currentTab.value = "settings";
+  currentSubTab.value = "integrations";
+} else if (currentTab.value === "details") {
+  currentTab.value = "settings";
+  currentSubTab.value = "general";
 }
 
+function setTab(tabId: string, subTabId?: string) {
+  if (tabId === "integrations") {
+    currentTab.value = "settings";
+    currentSubTab.value = "integrations";
+  } else if (tabId === "details") {
+    currentTab.value = "settings";
+    currentSubTab.value = "general";
+  } else {
+    currentTab.value = tabId;
+  }
+
+  if (subTabId) {
+    currentSubTab.value = subTabId;
+  }
+
+  router.replace({
+    query: {
+      ...route.query,
+      tab: currentTab.value === "dashboard" ? undefined : currentTab.value,
+      subtab: currentTab.value === "settings" ? currentSubTab.value : undefined,
+    },
+  });
+}
+
+function onSubTabChanged(subTabId: string) {
+  currentSubTab.value = subTabId;
+  router.replace({
+    query: {
+      ...route.query,
+      tab: "settings",
+      subtab: subTabId,
+    },
+  });
+}
+
+watch(
+  () => [route.query.tab, route.query.subtab],
+  ([newTab, newSubTab]) => {
+    if (newTab === "integrations") {
+      currentTab.value = "settings";
+      currentSubTab.value = "integrations";
+    } else if (newTab === "details") {
+      currentTab.value = "settings";
+      currentSubTab.value = "general";
+    } else if (newTab && typeof newTab === "string") {
+      currentTab.value = newTab;
+    } else if (!newTab) {
+      currentTab.value = "dashboard";
+    }
+
+    if (newSubTab && typeof newSubTab === "string") {
+      currentSubTab.value = newSubTab;
+    }
+  }
+);
+
+// État local du projet
 const item = ref<Project | undefined>(props.item);
 const isLoading = ref(false);
 const error = ref<string | undefined>(undefined);
 
-// Intégrations associées au projet
+const currentId = computed(() => {
+  return props.id || (route.params.id as string) || "";
+});
+
+// État des intégrations
 const projectIntegrations = ref<ProjectIntegration[]>([]);
-const isLoadingIntegrations = ref(false);
-const integrationError = ref<string | undefined>(undefined);
-const deletingId = ref<string | null>(null);
-
-// Liste de toutes les intégrations système pour la sélection
 const allIntegrations = ref<Integration[]>([]);
+const isLoadingIntegrations = ref(false);
 
-// Modale de création / édition
+// Raccourcis pour les intégrations dédiées
+const giteaPi = computed(() => {
+  return projectIntegrations.value.find((pi) => getIntegrationType(pi) === "gitea") || null;
+});
+
+const sonarPi = computed(() => {
+  return projectIntegrations.value.find((pi) => getIntegrationType(pi) === "sonarqube") || null;
+});
+
+const mantisPi = computed(() => {
+  return projectIntegrations.value.find((pi) => getIntegrationType(pi) === "mantis") || null;
+});
+
+const jenkinsPi = computed(() => {
+  return projectIntegrations.value.find((pi) => getIntegrationType(pi) === "jenkins") || null;
+});
+
+// Onglets du sous-menu avec badges dynamiques
+const subMenuTabs = computed(() => [
+  {
+    id: "dashboard",
+    label: "Tableau de bord",
+    icon: "i-heroicons-squares-2x2",
+  },
+  {
+    id: "gitea",
+    label: "Gitea",
+    icon: "i-heroicons-code-bracket",
+    badge: giteaPi.value ? "Lié" : undefined,
+    badgeColor: "warning" as const,
+  },
+  {
+    id: "sonarqube",
+    label: "SonarQube",
+    icon: "i-heroicons-shield-check",
+    badge: sonarPi.value ? "Lié" : undefined,
+    badgeColor: "primary" as const,
+  },
+  {
+    id: "mantis",
+    label: "Mantis BT",
+    icon: "i-heroicons-bug-ant",
+    badge: mantisPi.value ? "Lié" : undefined,
+    badgeColor: "success" as const,
+  },
+  {
+    id: "jenkins",
+    label: "Jenkins CI",
+    icon: "i-heroicons-arrow-path-rounded-square",
+    badge: jenkinsPi.value ? "Lié" : undefined,
+    badgeColor: "info" as const,
+  },
+  {
+    id: "settings",
+    label: "Paramètres",
+    icon: "i-heroicons-cog-6-tooth",
+    badge: projectIntegrations.value.length ? `${projectIntegrations.value.length}` : undefined,
+    badgeColor: "neutral" as const,
+  },
+]);
+
+// Modale de création / édition des intégrations
 const isModalOpen = ref(false);
 const modalMode = ref<"create" | "edit">("create");
 const editingPi = ref<ProjectIntegration | null>(null);
 const isSubmitting = ref(false);
 const formError = ref<string | null>(null);
-
 const formIntegrationIri = ref<string>("");
-const formParamFields = ref<Record<string, string>>({
+
+// Store et gestion des projets Mantis
+const integrationProjectsStore = useIntegrationProjectsStore();
+const isManualMantisInput = ref(false);
+
+const isLoadingMantisProjects = computed(() => integrationProjectsStore.isLoading);
+const mantisProjectsError = computed(() => integrationProjectsStore.error);
+const mantisProjects = computed(() => integrationProjectsStore.projects);
+
+const mantisSelectItems = computed(() => {
+  const options = mantisProjects.value.map((p) => ({
+    label: `${p.name} (#${p.id})`,
+    value: String(p.id),
+  }));
+
+  if (
+    formParamFields.value.project_id &&
+    !options.some((o) => o.value === String(formParamFields.value.project_id))
+  ) {
+    options.unshift({
+      label: `Projet #${formParamFields.value.project_id} (actuel)`,
+      value: String(formParamFields.value.project_id),
+    });
+  }
+
+  return options;
+});
+
+async function loadMantisProjectsIfNeeded() {
+  if (selectedIntegrationType.value !== "mantis") return;
+  const iri = formIntegrationIri.value;
+  const integrationId = getIdFromIri(iri);
+  if (!integrationId) return;
+
+  await integrationProjectsStore.fetchProjects(integrationId);
+}
+
+function reloadMantisProjects() {
+  loadMantisProjectsIfNeeded();
+}
+
+// Store et gestion des dossiers / jobs Jenkins
+const isManualJenkinsInput = ref(false);
+const isLoadingJenkinsFolders = ref(false);
+const isLoadingJenkinsJobs = ref(false);
+const discoveredJenkinsJobs = ref<any[]>([]);
+
+const jenkinsSelectItems = computed(() => {
+  const options = integrationProjectsStore.projects.map((p) => ({
+    label: `${p.name}`,
+    value: p.id,
+  }));
+
+  if (
+    formParamFields.value.folder &&
+    !options.some((o) => o.value === formParamFields.value.folder)
+  ) {
+    options.unshift({
+      label: `${formParamFields.value.folder} (personnalisé)`,
+      value: formParamFields.value.folder,
+    });
+  }
+
+  return options;
+});
+
+async function loadJenkinsFoldersIfNeeded() {
+  if (selectedIntegrationType.value !== "jenkins") return;
+  const iri = formIntegrationIri.value;
+  const integrationId = getIdFromIri(iri);
+  if (!integrationId) return;
+
+  isLoadingJenkinsFolders.value = true;
+  try {
+    await integrationProjectsStore.fetchProjects(integrationId);
+  } finally {
+    isLoadingJenkinsFolders.value = false;
+  }
+}
+
+function reloadJenkinsFolders() {
+  loadJenkinsFoldersIfNeeded();
+}
+
+async function onJenkinsFolderChanged(newFolder: string) {
+  formParamFields.value.folder = newFolder;
+  if (!newFolder) {
+    discoveredJenkinsJobs.value = [];
+    return;
+  }
+  const iri = formIntegrationIri.value;
+  const integrationId = getIdFromIri(iri);
+  if (!integrationId) return;
+
+  isLoadingJenkinsJobs.value = true;
+  try {
+    const jobs = await integrationProjectsStore.fetchJobs(integrationId, newFolder);
+    discoveredJenkinsJobs.value = jobs;
+  } catch {
+    discoveredJenkinsJobs.value = [];
+  } finally {
+    isLoadingJenkinsJobs.value = false;
+  }
+}
+
+const formParamFields = ref({
   repository: "",
-  branch: "",
+  branch: "main",
   project_key: "",
   job: "",
+  folder: "",
   project_id: "",
 });
-const customParamRows = ref<Array<{ key: string; value: string }>>([]);
 
-// Helpers de formatage
-function formatOrganisation(org: any): string {
-  if (!org) return "Aucune";
-  if (typeof org === "object") return org.name || org["@id"] || "Organisation";
-  return String(org);
-}
+const customParamRows = ref<{ key: string; value: string }[]>([]);
 
-function getIntegration(pi: ProjectIntegration): Integration | null {
-  if (!pi?.integration) return null;
-  if (typeof pi.integration === "object") return pi.integration as Integration;
-  return allIntegrations.value.find((i) => i["@id"] === pi.integration) || null;
-}
+const availableIntegrationOptions = computed(() => {
+  return allIntegrations.value.map((i) => ({
+    label: `${i.name} (${i.type?.toUpperCase()})`,
+    value: i["@id"],
+  }));
+});
 
-function getIntegrationName(pi: ProjectIntegration): string {
-  const integ = getIntegration(pi);
-  return integ?.name || (typeof pi.integration === "string" ? pi.integration : "Intégration");
-}
-
-function getIntegrationType(pi: ProjectIntegration): string {
-  const integ = getIntegration(pi);
-  return (integ?.type || "unknown").toLowerCase();
-}
-
-function getIntegrationStatus(pi: ProjectIntegration): string {
-  const integ = getIntegration(pi);
-  return integ?.status || "unknown";
-}
-
-function getServerHost(pi: ProjectIntegration): string | null {
-  const integ = getIntegration(pi);
-  if (!integ?.server) return null;
-  if (typeof integ.server === "object") {
-    const s = integ.server as any;
-    return s.host ? `${s.host}${s.port ? ':' + s.port : ''}` : s.name || null;
+const selectedIntegrationType = computed(() => {
+  if (modalMode.value === "create") {
+    const found = allIntegrations.value.find((i) => i["@id"] === formIntegrationIri.value);
+    return found?.type?.toLowerCase() || "";
   }
-  return null;
-}
-
-function hasParameters(pi: ProjectIntegration): boolean {
-  if (!pi.parameters) return false;
-  return Object.keys(pi.parameters).length > 0;
-}
-
-function getTypeIcon(type?: string): string {
-  switch (type?.toLowerCase()) {
-    case "gitea":
-      return "i-heroicons-code-bracket";
-    case "jenkins":
-      return "i-heroicons-arrow-path-rounded-square";
-    case "mantis":
-      return "i-heroicons-bug-ant";
-    case "sonarqube":
-      return "i-heroicons-shield-check";
-    default:
-      return "i-heroicons-bolt";
+  if (editingPi.value) {
+    return getIntegrationType(editingPi.value);
   }
-}
+  return "";
+});
 
-function getTypeBgClass(type?: string): string {
-  switch (type?.toLowerCase()) {
-    case "gitea":
-      return "bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400";
-    case "jenkins":
-      return "bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400";
-    case "mantis":
-      return "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400";
-    case "sonarqube":
-      return "bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400";
-    default:
-      return "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400";
+watch(
+  [selectedIntegrationType, formIntegrationIri],
+  ([newType, newIri]) => {
+    if (newType === "mantis" && newIri) {
+      loadMantisProjectsIfNeeded();
+    } else if (newType === "jenkins" && newIri) {
+      loadJenkinsFoldersIfNeeded();
+    }
   }
-}
+);
 
-function getTypeBadgeColor(type?: string): "warning" | "info" | "success" | "primary" | "neutral" {
-  switch (type?.toLowerCase()) {
-    case "gitea":
-      return "warning";
-    case "jenkins":
-      return "info";
-    case "mantis":
-      return "success";
-    case "sonarqube":
-      return "primary";
-    default:
-      return "neutral";
+const selectedPiIntegrationName = computed(() => {
+  if (!editingPi.value) return "";
+  return getIntegrationName(editingPi.value);
+});
+
+function openLinkModal(defaultType?: string) {
+  modalMode.value = "create";
+  editingPi.value = null;
+  formError.value = null;
+  isManualMantisInput.value = false;
+  isManualJenkinsInput.value = false;
+  discoveredJenkinsJobs.value = [];
+
+  if (defaultType) {
+    const match = allIntegrations.value.find(
+      (i) => i.type?.toLowerCase() === defaultType.toLowerCase()
+    );
+    formIntegrationIri.value = match?.["@id"] || allIntegrations.value[0]?.["@id"] || "";
+  } else {
+    formIntegrationIri.value = allIntegrations.value[0]?.["@id"] || "";
+  }
+
+  formParamFields.value = {
+    repository: "",
+    branch: "main",
+    project_key: "",
+    job: "",
+    folder: "",
+    project_id: "",
+  };
+  customParamRows.value = [];
+  isModalOpen.value = true;
+
+  if (defaultType?.toLowerCase() === "mantis" || selectedIntegrationType.value === "mantis") {
+    nextTick(() => {
+      loadMantisProjectsIfNeeded();
+    });
+  } else if (defaultType?.toLowerCase() === "jenkins" || selectedIntegrationType.value === "jenkins") {
+    nextTick(() => {
+      loadJenkinsFoldersIfNeeded();
+    });
   }
 }
 
-function getStatusDotClass(status?: string): string {
-  switch (status?.toLowerCase()) {
-    case "healthy":
-      return "bg-emerald-500";
-    case "error":
-      return "bg-red-500";
-    case "warning":
-      return "bg-amber-500";
-    default:
-      return "bg-neutral-400";
-  }
-}
+function openEditModal(pi: ProjectIntegration) {
+  modalMode.value = "edit";
+  editingPi.value = pi;
+  formError.value = null;
+  isManualMantisInput.value = false;
+  isManualJenkinsInput.value = false;
+  formIntegrationIri.value = typeof pi.integration === "object" ? pi.integration?.["@id"] : (pi.integration || "");
 
-function getStatusLabel(status?: string): string {
-  switch (status?.toLowerCase()) {
-    case "healthy":
-      return "Opérationnel";
-    case "error":
-      return "Erreur";
-    case "warning":
-      return "Avertissement";
-    default:
-      return "Non vérifié";
-  }
-}
-
-function isPrimaryParam(key: string, type?: string): boolean {
-  switch (type?.toLowerCase()) {
-    case "gitea":
-      return key === "repository";
-    case "sonarqube":
-      return key === "project_key";
-    case "jenkins":
-      return key === "job" || key === "job_name";
-    case "mantis":
-      return key === "project_id";
-    default:
-      return false;
-  }
-}
-
-function formatParamKey(key: string, type?: string): string {
-  if (type === "gitea" && key === "repository") return "Dépôt Gitea (chemin)";
-  if (type === "gitea" && key === "branch") return "Branche par défaut";
-  if (type === "sonarqube" && key === "project_key") return "Clé de projet SonarQube";
-  if (type === "jenkins" && (key === "job" || key === "job_name")) return "Nom du Job Jenkins";
-  if (type === "mantis" && key === "project_id") return "Projet Mantis";
-  return key;
-}
-
-function getExternalUrl(pi: ProjectIntegration): string | null {
-  const integ = getIntegration(pi);
-  if (!integ?.server || typeof integ.server !== "object") return null;
-
-  const server = integ.server as any;
-  if (!server.host) return null;
-
-  const protocol = server.options?.protocol || "http";
-  const port = server.port && !((protocol === "http" && server.port === 80) || (protocol === "https" && server.port === 443))
-    ? `:${server.port}`
-    : "";
-  const baseUrl = `${protocol}://${server.host}${port}`;
   const params = pi.parameters || {};
-  const type = integ.type?.toLowerCase();
+  formParamFields.value = {
+    repository: params.repository || "",
+    branch: params.branch || "",
+    project_key: params.project_key || "",
+    job: params.job || params.job_name || "",
+    folder: params.folder || params.folder_path || params.job_folder || "",
+    project_id: params.project_id !== undefined ? String(params.project_id) : "",
+  };
 
-  if (type === "gitea" && params.repository) {
-    return `${baseUrl}/${params.repository}`;
-  }
-  if (type === "sonarqube" && params.project_key) {
-    return `${baseUrl}/dashboard?id=${encodeURIComponent(params.project_key)}`;
-  }
-  if (type === "jenkins" && (params.job || params.job_name)) {
-    return `${baseUrl}/job/${encodeURIComponent(params.job || params.job_name)}`;
-  }
-  if (type === "mantis" && params.project_id) {
-    return `${baseUrl}/view_all_bug_page.php?project_id=${encodeURIComponent(params.project_id)}`;
+  if (params.jobs && Array.isArray(params.jobs)) {
+    discoveredJenkinsJobs.value = params.jobs;
+  } else {
+    discoveredJenkinsJobs.value = [];
   }
 
-  return baseUrl;
+  const standardKeys = ["repository", "branch", "project_key", "job", "job_name", "folder", "folder_path", "job_folder", "jobs", "jobs_count", "project_id", "project_name"];
+  customParamRows.value = Object.entries(params)
+    .filter(([k]) => !standardKeys.includes(k))
+    .map(([key, value]) => ({ key, value: String(value) }));
+
+  isModalOpen.value = true;
+
+  if (getIntegrationType(pi) === "mantis") {
+    nextTick(() => {
+      loadMantisProjectsIfNeeded();
+    });
+  } else if (getIntegrationType(pi) === "jenkins") {
+    nextTick(() => {
+      loadJenkinsFoldersIfNeeded();
+      if (formParamFields.value.folder && discoveredJenkinsJobs.value.length === 0) {
+        onJenkinsFolderChanged(formParamFields.value.folder);
+      }
+    });
+  }
 }
 
-// Chargement des données du projet
+function addCustomParamRow() {
+  customParamRows.value.push({ key: "", value: "" });
+}
+
+function removeCustomParamRow(idx: number) {
+  customParamRows.value.splice(idx, 1);
+}
+
+async function submitModal() {
+  const projectIri = item.value?.["@id"] || (currentId.value ? `/api/projects/${currentId.value}` : null);
+  if (!projectIri) {
+    formError.value = "Projet introuvable.";
+    return;
+  }
+
+  if (modalMode.value === "create" && !formIntegrationIri.value) {
+    formError.value = "Veuillez sélectionner une intégration.";
+    return;
+  }
+
+  const finalParameters: Record<string, any> = {};
+  const type = selectedIntegrationType.value;
+
+  if (type === "gitea") {
+    if (formParamFields.value.repository?.trim()) {
+      finalParameters.repository = formParamFields.value.repository.trim();
+    }
+    if (formParamFields.value.branch?.trim()) {
+      finalParameters.branch = formParamFields.value.branch.trim();
+    }
+  } else if (type === "sonarqube") {
+    if (formParamFields.value.project_key?.trim()) {
+      finalParameters.project_key = formParamFields.value.project_key.trim();
+    }
+  } else if (type === "jenkins") {
+    if (formParamFields.value.folder?.trim()) {
+      const folderVal = formParamFields.value.folder.trim();
+      finalParameters.folder = folderVal;
+      finalParameters.job = folderVal;
+      finalParameters.job_name = folderVal;
+      if (discoveredJenkinsJobs.value.length > 0) {
+        finalParameters.jobs = discoveredJenkinsJobs.value;
+        finalParameters.jobs_count = discoveredJenkinsJobs.value.length;
+      }
+    } else if (formParamFields.value.job?.trim()) {
+      finalParameters.job = formParamFields.value.job.trim();
+      finalParameters.job_name = formParamFields.value.job.trim();
+    }
+  } else if (type === "mantis") {
+    if (formParamFields.value.project_id?.trim()) {
+      finalParameters.project_id = formParamFields.value.project_id.trim();
+      const matched = mantisProjects.value.find((p) => String(p.id) === finalParameters.project_id);
+      if (matched) {
+        finalParameters.project_name = matched.name;
+      }
+    }
+  }
+
+  for (const row of customParamRows.value) {
+    if (row.key?.trim()) {
+      finalParameters[row.key.trim()] = row.value?.trim() || "";
+    }
+  }
+
+  isSubmitting.value = true;
+  formError.value = null;
+
+  try {
+    if (modalMode.value === "create") {
+      await $fetch(resolveApiUrl("/project_integrations"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/ld+json",
+          Accept: "application/ld+json",
+        },
+        body: {
+          project: projectIri,
+          integration: formIntegrationIri.value,
+          parameters: finalParameters,
+        },
+      });
+    } else if (editingPi.value?.["@id"]) {
+      await $fetch(resolveApiUrl(editingPi.value["@id"]), {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/merge-patch+json",
+          Accept: "application/ld+json",
+        },
+        body: {
+          parameters: finalParameters,
+        },
+      });
+    }
+
+    isModalOpen.value = false;
+    await loadProjectIntegrations();
+  } catch (err: any) {
+    formError.value = err?.data?.["hydra:description"] || err?.message || "Erreur lors de l'enregistrement.";
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function handleUnlink(pi: ProjectIntegration) {
+  if (!pi["@id"]) return;
+  const integName = getIntegrationName(pi);
+  const ok = confirm(`Êtes-vous sûr de vouloir dissocier l'intégration "${integName}" de ce projet ?`);
+  if (!ok) return;
+
+  try {
+    await $fetch(resolveApiUrl(pi["@id"]), {
+      method: "DELETE",
+    });
+    await loadProjectIntegrations();
+  } catch (err: any) {
+    alert(err?.message || "Erreur lors de la suppression de la liaison.");
+  }
+}
+
+// Chargement des données
 async function load() {
   if (props.item) {
     item.value = props.item;
@@ -709,218 +1111,32 @@ async function load() {
   await Promise.all([loadProjectIntegrations(), loadAllIntegrations()]);
 }
 
-// Chargement des intégrations liées à ce projet
 async function loadProjectIntegrations() {
   const projectIri = item.value?.["@id"] || (currentId.value ? `/api/projects/${currentId.value}` : null);
   if (!projectIri) return;
 
   isLoadingIntegrations.value = true;
-  integrationError.value = undefined;
-
   try {
-    const entrypoint = getEntrypoint();
-    const res: any = await $fetch(`${entrypoint}/project_integrations`, {
+    const res: any = await $fetch(resolveApiUrl("/project_integrations"), {
       params: { project: projectIri },
       headers: { Accept: "application/ld+json" },
     });
-
     projectIntegrations.value = res?.member || res?.["hydra:member"] || [];
-  } catch (err: any) {
-    integrationError.value = err?.message || "Impossible de charger les intégrations du projet.";
+  } catch {
+    //
   } finally {
     isLoadingIntegrations.value = false;
   }
 }
 
-// Chargement de l'ensemble des intégrations disponibles
 async function loadAllIntegrations() {
   try {
-    const entrypoint = getEntrypoint();
-    const res: any = await $fetch(`${entrypoint}/integrations`, {
+    const res: any = await $fetch(resolveApiUrl("/integrations"), {
       headers: { Accept: "application/ld+json" },
     });
     allIntegrations.value = res?.member || res?.["hydra:member"] || [];
   } catch {
-    // Non bloquant
-  }
-}
-
-// Modale : Options d'intégrations pour le select
-const availableIntegrationOptions = computed(() => {
-  return allIntegrations.value.map((i) => ({
-    label: `${i.name} (${i.type?.toUpperCase()})`,
-    value: i["@id"],
-  }));
-});
-
-const selectedIntegrationType = computed(() => {
-  if (modalMode.value === "create") {
-    const found = allIntegrations.value.find((i) => i["@id"] === formIntegrationIri.value);
-    return found?.type?.toLowerCase() || "";
-  }
-  if (editingPi.value) {
-    return getIntegrationType(editingPi.value);
-  }
-  return "";
-});
-
-const selectedPiIntegrationName = computed(() => {
-  if (!editingPi.value) return "";
-  return getIntegrationName(editingPi.value);
-});
-
-function openLinkModal() {
-  modalMode.value = "create";
-  editingPi.value = null;
-  formError.value = null;
-  formIntegrationIri.value = allIntegrations.value[0]?.["@id"] || "";
-  formParamFields.value = {
-    repository: "",
-    branch: "main",
-    project_key: "",
-    job: "",
-    project_id: "",
-  };
-  customParamRows.value = [];
-  isModalOpen.value = true;
-}
-
-function openEditModal(pi: ProjectIntegration) {
-  modalMode.value = "edit";
-  editingPi.value = pi;
-  formError.value = null;
-  formIntegrationIri.value = typeof pi.integration === "object" ? pi.integration?.["@id"] : (pi.integration || "");
-
-  const params = pi.parameters || {};
-  formParamFields.value = {
-    repository: params.repository || "",
-    branch: params.branch || "",
-    project_key: params.project_key || "",
-    job: params.job || params.job_name || "",
-    project_id: params.project_id || "",
-  };
-
-  // Extraire les paramètres non standards
-  const standardKeys = ["repository", "branch", "project_key", "job", "job_name", "project_id"];
-  customParamRows.value = Object.entries(params)
-    .filter(([k]) => !standardKeys.includes(k))
-    .map(([key, value]) => ({ key, value: String(value) }));
-
-  isModalOpen.value = true;
-}
-
-function addCustomParamRow() {
-  customParamRows.value.push({ key: "", value: "" });
-}
-
-function removeCustomParamRow(idx: number) {
-  customParamRows.value.splice(idx, 1);
-}
-
-// Soumission de la modale
-async function submitModal() {
-  const projectIri = item.value?.["@id"] || (currentId.value ? `/api/projects/${currentId.value}` : null);
-  if (!projectIri) {
-    formError.value = "Projet introuvable.";
-    return;
-  }
-
-  if (modalMode.value === "create" && !formIntegrationIri.value) {
-    formError.value = "Veuillez sélectionner une intégration.";
-    return;
-  }
-
-  // Construction de l'objet de paramètres
-  const finalParameters: Record<string, any> = {};
-  const type = selectedIntegrationType.value;
-
-  if (type === "gitea") {
-    if (formParamFields.value.repository?.trim()) {
-      finalParameters.repository = formParamFields.value.repository.trim();
-    }
-    if (formParamFields.value.branch?.trim()) {
-      finalParameters.branch = formParamFields.value.branch.trim();
-    }
-  } else if (type === "sonarqube") {
-    if (formParamFields.value.project_key?.trim()) {
-      finalParameters.project_key = formParamFields.value.project_key.trim();
-    }
-  } else if (type === "jenkins") {
-    if (formParamFields.value.job?.trim()) {
-      finalParameters.job = formParamFields.value.job.trim();
-    }
-  } else if (type === "mantis") {
-    if (formParamFields.value.project_id?.trim()) {
-      finalParameters.project_id = formParamFields.value.project_id.trim();
-    }
-  }
-
-  // Paramètres personnalisés
-  for (const row of customParamRows.value) {
-    if (row.key?.trim()) {
-      finalParameters[row.key.trim()] = row.value?.trim() || "";
-    }
-  }
-
-  isSubmitting.value = true;
-  formError.value = null;
-
-  try {
-    const entrypoint = getEntrypoint();
-
-    if (modalMode.value === "create") {
-      await $fetch(`${entrypoint}/project_integrations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/ld+json",
-          Accept: "application/ld+json",
-        },
-        body: {
-          project: projectIri,
-          integration: formIntegrationIri.value,
-          parameters: finalParameters,
-        },
-      });
-    } else if (editingPi.value?.["@id"]) {
-      await $fetch(`${entrypoint}${editingPi.value['@id']}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/merge-patch+json",
-          Accept: "application/ld+json",
-        },
-        body: {
-          parameters: finalParameters,
-        },
-      });
-    }
-
-    isModalOpen.value = false;
-    await loadProjectIntegrations();
-  } catch (err: any) {
-    formError.value = err?.data?.["hydra:description"] || err?.message || "Erreur lors de l'enregistrement.";
-  } finally {
-    isSubmitting.value = false;
-  }
-}
-
-// Dissocier une intégration
-async function handleUnlink(pi: ProjectIntegration) {
-  if (!pi["@id"]) return;
-  const integName = getIntegrationName(pi);
-  const ok = confirm(`Êtes-vous sûr de vouloir dissocier l'intégration "${integName}" de ce projet ?`);
-  if (!ok) return;
-
-  deletingId.value = pi["@id"];
-  try {
-    const entrypoint = getEntrypoint();
-    await $fetch(`${entrypoint}${pi['@id']}`, {
-      method: "DELETE",
-    });
-    await loadProjectIntegrations();
-  } catch (err: any) {
-    alert(err?.message || "Erreur lors de la suppression de la liaison.");
-  } finally {
-    deletingId.value = null;
+    //
   }
 }
 
