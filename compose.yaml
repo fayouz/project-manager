@@ -1,0 +1,121 @@
+services:
+  php:
+    image: ${IMAGES_PREFIX:-}app-php
+    privileged: true
+    depends_on:
+      - database
+    restart: unless-stopped
+    environment:
+      PWA_UPSTREAM: pwa:3000
+      FRONT_UPSTREAM: front:3000
+      CADDY_GLOBAL_OPTIONS: "auto_https off"
+      SERVER_NAME: ${SERVER_NAME:-local-project-manager.localhost}
+      MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+      MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-^(${SERVER_NAME:-example\.com|localhost}|test-project-manager\.(localhost|test)|local-project-manager\.localhost|php)$$}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-16}&charset=${POSTGRES_CHARSET:-utf8}
+      MERCURE_URL: ${CADDY_MERCURE_URL:-http://php/.well-known/mercure}
+      MERCURE_PUBLIC_URL: ${CADDY_MERCURE_PUBLIC_URL:-http://${SERVER_NAME:-localhost}/.well-known/mercure}
+      MERCURE_JWT_SECRET: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+      HTTP_PROXY: ${HTTP_PROXY:-${http_proxy:-}}
+      HTTPS_PROXY: ${HTTPS_PROXY:-${https_proxy:-}}
+      NO_PROXY: ${NO_PROXY:-${no_proxy:-127.0.0.1,localhost,database,php,front,pwa,local-project-manager.localhost,bme_network,ldap.groupegdb.local}}
+      http_proxy: ${http_proxy:-${HTTP_PROXY:-}}
+      https_proxy: ${https_proxy:-${HTTPS_PROXY:-}}
+      no_proxy: ${no_proxy:-${NO_PROXY:-127.0.0.1,localhost,database,php,front,pwa,local-project-manager.localhost,bme_network,ldap.groupegdb.local}}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.project-manager.entrypoints=websecure"
+      - "traefik.http.routers.project-manager.rule=Host(`${SERVER_NAME:-localhost}`)"
+      - "traefik.http.routers.project-manager.tls=true"
+      - "traefik.http.routers.project-manager-http.entrypoints=web"
+      - "traefik.http.routers.project-manager-http.rule=Host(`${SERVER_NAME:-localhost}`)"
+      - "traefik.http.services.project-manager.loadbalancer.server.port=80"
+      - "traefik.docker.network=bme_network"
+    
+    networks:
+      app_network:
+      bme_network:
+        aliases:
+          - local-project-manager.localhost
+          - test-project-manager.localhost
+          - test-project-manager.test
+  pwa:
+    image: ${IMAGES_PREFIX:-}app-pwa
+    environment:
+      NEXT_PUBLIC_ENTRYPOINT: https://local-project-manager.localhost
+    networks:
+      - app_network
+      - bme_network
+  
+  front:
+    image: ${IMAGES_PREFIX:-}app-front
+    environment:
+      NODE_ENV: development
+      NUXT_PUBLIC_API_BASE: https://local-project-manager.localhost/api
+    networks:
+      - app_network
+      - bme_network
+
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.48.2-noble
+    working_dir: /work
+    ipc: host
+    volumes:
+      - ./e2e:/work
+    environment:
+      - BASE_URL=http://php
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_USER=app
+      - DB_PASSWORD=!ChangeMe!
+      - DB_NAME=app_test
+    networks:
+      - app_network
+      - bme_network
+    depends_on:
+      - php
+      - front
+  
+###> doctrine/doctrine-bundle ###
+  database:
+    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-app}
+      # You should definitely change the password in production
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-!ChangeMe!}
+      - POSTGRES_USER=${POSTGRES_USER:-app}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-app}", "-U", "${POSTGRES_USER:-app}"]
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - database_data:/var/lib/postgresql/data:rw
+    networks:
+      - app_network
+      - bme_network
+      # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
+      # - ./api/docker/db/data:/var/lib/postgresql/data:rw
+###< doctrine/doctrine-bundle ###
+
+# Mercure is installed as a Caddy module, prevent the Flex recipe from installing another service
+###> symfony/mercure-bundle ###
+###< symfony/mercure-bundle ###
+
+volumes:
+  caddy_data:
+  caddy_config:
+###> doctrine/doctrine-bundle ###
+  database_data:
+###< doctrine/doctrine-bundle ###
+###> symfony/mercure-bundle ###
+###< symfony/mercure-bundle ###
+networks:
+  app_network:
+  bme_network:
+    external: true

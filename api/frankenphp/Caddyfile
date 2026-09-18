@@ -1,0 +1,62 @@
+{
+{$CADDY_GLOBAL_OPTIONS}
+
+frankenphp {
+                {$FRANKENPHP_CONFIG}
+        }
+}
+
+{$CADDY_EXTRA_CONFIG}
+
+http://{$SERVER_NAME:localhost}, http://php, http://test-project-manager.localhost, http://test-project-manager.test, :80 {
+																										 log {
+																											 # Redact the authorization query parameter that can be set by Mercure
+																											 format filter {
+																														   request>uri query {
+																																			 replace authorization REDACTED
+																																			 }
+                }
+        }
+
+																										 root * /app/public
+																										 encode zstd br gzip
+
+																										 mercure {
+																												 # Transport to use (default to Bolt)
+																												 transport bolt {
+																																path /data/mercure.db
+																																}
+																												 # Publisher JWT key
+																												 publisher_jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
+																												 # Subscriber JWT key
+																												 subscriber_jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
+																												 # Allow anonymous subscribers (double-check that it's what you want)
+																												 anonymous
+																												 # Enable the subscription API (double-check that it's what you want)
+																												 subscriptions
+																												 # Extra directives
+																												 {$MERCURE_EXTRA_DIRECTIVES}
+        }
+
+																										 vulcain
+
+																										 # Add links to the API docs and to the Mercure Hub if not set explicitly (e.g. the PWA)
+																										 header ?Link `</docs.jsonld>; rel="http://www.w3.org/ns/hydra/core#apiDocumentation", </.well-known/mercure>; rel="mercure"`
+																										 # Disable Topics tracking if not enabled explicitly: https://github.com/jkarlin/topics
+																										 header ?Permissions-Policy "browsing-topics=()"
+
+
+																										 route {
+																											   # Admin
+																											   @admin path /admin* /_next* /__next*
+																											   reverse_proxy @admin http://{$PWA_UPSTREAM}
+
+																																	# API Symfony
+																																	@api path /api* /docs* /graphql* /bundles* /contexts* /_profiler* /_wdt* /.well-known*
+																																											   php_server @api
+
+																																											   # Front Nuxt par défaut
+																											   reverse_proxy http://{$FRONT_UPSTREAM}
+																											   }
+
+}

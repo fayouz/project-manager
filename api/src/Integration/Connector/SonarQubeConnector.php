@@ -1,0 +1,249 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Integration\Connector;
+
+use App\Entity\Integration;
+use App\Integration\Dto\ConnectionTestResult;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
+
+class SonarQubeConnector implements IntegrationConnectorInterface
+{
+    public function __construct(
+        private readonly HttpClientInterface $httpClient
+    ) {
+    }
+
+    public function supports(string $type): bool
+    {
+        return strtolower($type) === 'sonarqube';
+    }
+
+    public function getType(): string
+    {
+        return 'sonarqube';
+    }
+
+    public function getName(): string
+    {
+        return 'SonarQube';
+    }
+
+    public function testConnection(Integration $integration): ConnectionTestResult
+    {
+        $server = $integration->getServer();
+        if ($server === null) {
+            return ConnectionTestResult::failure("Aucun serveur n'est associé à cette intégration.");
+        }
+
+        $baseUrl = $this->resolveBaseUrl($integration);
+        if ($baseUrl === null || $baseUrl === '') {
+            return ConnectionTestResult::failure("L'hôte du serveur n'est pas renseigné pour SonarQube.");
+        }
+
+        $token = $server->getPassword();
+        $username = $server->getUsername();
+        $authTypeName = $server->getAuthenticationType()?->getName();
+        $options = $server->getOptions();
+
+        $timeout = isset($options['timeout']) && is_numeric($options['timeout']) ? (float) $options['timeout'] : 10.0;
+        $baseRequestOptions = [
+            'timeout' => $timeout,
+            'max_redirects' => 3,
+            'headers' => [
+                'Accept' => 'application/json',
+            ],
+        ];
+
+        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
+        if (!empty($proxy)) {
+            $proxyVal = (string) $proxy;
+            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
+                $baseRequestOptions['proxy'] = '';
+            } else {
+                $baseRequestOptions['proxy'] = $proxyVal;
+            }
+        }
+
+        try {
+            // 1. Check system status & version
+            $statusResponse = $this->httpClient->request('GET', $baseUrl . '/api/system/status', $baseRequestOptions);
+            $statusCode = $statusResponse->getStatusCode();
+
+            if ($statusCode === 404) {
+                return ConnectionTestResult::failure(
+                    sprintf("Instance SonarQube introuvable à l'adresse %s (HTTP 404).", $baseUrl)
+                );
+            }
+
+            if ($statusCode !== 200) {
+                return ConnectionTestResult::failure(
+                    sprintf('Le serveur SonarQube a répondu avec le statut HTTP %d.', $statusCode)
+                );
+            }
+
+            $statusData = $statusResponse->toArray(false);
+            $systemStatus = $statusData['status'] ?? null;
+            $version = $statusData['version'] ?? null;
+
+            if ($systemStatus !== null && $systemStatus !== 'UP') {
+                return ConnectionTestResult::failure(
+                    sprintf("Le serveur SonarQube n'est pas opérationnel (état: %s).", $systemStatus)
+                );
+            }
+
+            // 2. Validate authentication if credentials or token provided
+            $hasToken = $authTypeName === 'Token' || (!empty($token) && empty($username));
+            $hasBasic = !empty($username) && !empty($token);
+
+            if ($hasToken || $hasBasic) {
+                $authOptions = $baseRequestOptions;
+
+                if ($hasBasic && $authTypeName !== 'Token') {
+                    $authOptions['auth_basic'] = [(string) $username, (string) $token];
+                } else {
+                    $cleanToken = trim((string) $token);
+                    $authOptions['headers']['Authorization'] = 'Bearer ' . $cleanToken;
+                }
+
+                $userResponse = $this->httpClient->request('GET', $baseUrl . '/api/users/current', $authOptions);
+                $userStatusCode = $userResponse->getStatusCode();
+
+                // If Bearer failed with 401, fallback to token in basic auth (token:)
+                if ($userStatusCode === 401 && $hasToken) {
+                    $fallbackOptions = $baseRequestOptions;
+                    $fallbackOptions['auth_basic'] = [trim((string) $token), ''];
+                    $userResponse = $this->httpClient->request('GET', $baseUrl . '/api/users/current', $fallbackOptions);
+                    $userStatusCode = $userResponse->getStatusCode();
+                    if ($userStatusCode === 200) {
+                        $authOptions = $fallbackOptions;
+                    }
+                }
+
+                if ($userStatusCode === 401 || $userStatusCode === 403) {
+                    return ConnectionTestResult::failure(
+                        sprintf("Échec d'authentification SonarQube (HTTP %d) : identifiants ou jeton d'accès invalides.", $userStatusCode)
+                    );
+                }
+
+                if ($userStatusCode !== 200) {
+                    return ConnectionTestResult::failure(
+                        sprintf('Le serveur SonarQube a répondu avec le statut HTTP %d lors de la vérification du compte.', $userStatusCode)
+                    );
+                }
+
+                $userData = $userResponse->toArray(false);
+                $isLoggedIn = $userData['isLoggedIn'] ?? false;
+
+                if (!$isLoggedIn) {
+                    return ConnectionTestResult::failure(
+                        "Échec d'authentification SonarQube : session non connectée (identifiants invalides)."
+                    );
+                }
+
+                $authenticatedUsername = $userData['name'] ?? $userData['login'] ?? $username;
+
+                // 3. Optional: retrieve projects count
+                $projectCount = $this->fetchProjectsCount($baseUrl, $authOptions);
+
+                $message = 'Connexion réussie à SonarQube';
+                if ($version !== null) {
+                    $message .= sprintf(' (version %s)', $version);
+                }
+                if ($authenticatedUsername !== null && $authenticatedUsername !== '') {
+                    $message .= sprintf(' pour le compte %s', $authenticatedUsername);
+                }
+                if ($projectCount !== null) {
+                    $message .= sprintf(' (%d projet%s accessible%s)', $projectCount, $projectCount > 1 ? 's' : '', $projectCount > 1 ? 's' : '');
+                }
+
+                return ConnectionTestResult::success(
+                    $message,
+                    array_filter([
+                        'version' => $version,
+                        'status' => $systemStatus,
+                        'username' => $authenticatedUsername,
+                        'projects_count' => $projectCount,
+                        'url' => $baseUrl,
+                    ])
+                );
+            }
+
+            // 4. Anonymous access
+            $message = 'Instance SonarQube accessible';
+            if ($version !== null) {
+                $message .= sprintf(' (version %s)', $version);
+            }
+            $message .= ' (aucun identifiant configuré)';
+
+            return ConnectionTestResult::success(
+                $message,
+                array_filter([
+                    'version' => $version,
+                    'status' => $systemStatus,
+                    'url' => $baseUrl,
+                ])
+            );
+        } catch (TransportExceptionInterface $e) {
+            return ConnectionTestResult::failure(
+                sprintf("Délai d'attente dépassé ou serveur SonarQube injoignable : %s", $e->getMessage())
+            );
+        } catch (\Throwable $e) {
+            return ConnectionTestResult::failure(
+                sprintf('Erreur lors du test de connexion SonarQube : %s', $e->getMessage())
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $authOptions
+     */
+    private function fetchProjectsCount(string $baseUrl, array $authOptions): ?int
+    {
+        try {
+            $response = $this->httpClient->request('GET', $baseUrl . '/api/components/search_projects?ps=1', $authOptions);
+            if ($response->getStatusCode() === 200) {
+                $data = $response->toArray(false);
+                if (isset($data['paging']['total']) && is_numeric($data['paging']['total'])) {
+                    return (int) $data['paging']['total'];
+                }
+            }
+        } catch (\Throwable) {
+            // Non-critical, ignore
+        }
+
+        return null;
+    }
+
+    private function resolveBaseUrl(Integration $integration): ?string
+    {
+        $server = $integration->getServer();
+        if ($server === null) {
+            return null;
+        }
+
+        $host = $server->getHost();
+        if ($host === null || $host === '') {
+            return null;
+        }
+
+        $host = preg_replace('#^https?://#', '', rtrim($host, '/'));
+
+        $options = $server->getOptions();
+        $scheme = $options['protocol'] ?? 'http';
+        $port = $server->getPort();
+
+        $url = sprintf('%s://%s', $scheme, $host);
+        if ($port !== null && !(($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443))) {
+            $url .= ':' . $port;
+        }
+
+        if (!empty($options['path'])) {
+            $url .= '/' . ltrim((string) $options['path'], '/');
+        }
+
+        return rtrim($url, '/');
+    }
+}
