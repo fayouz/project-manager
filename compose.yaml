@@ -20,10 +20,10 @@ services:
       MERCURE_JWT_SECRET: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       HTTP_PROXY: ${HTTP_PROXY:-${http_proxy:-}}
       HTTPS_PROXY: ${HTTPS_PROXY:-${https_proxy:-}}
-      NO_PROXY: ${NO_PROXY:-${no_proxy:-127.0.0.1,localhost,database,php,front,pwa,local-project-manager.localhost,bme_network,ldap.groupegdb.local}}
+      NO_PROXY: ${NO_PROXY:-${no_proxy:-127.0.0.1,localhost,database,php,front,pwa,local-project-manager.localhost,bme_network,ldap.groupegdb.local,bm-energies.com,.bm-energies.com,.local}}
       http_proxy: ${http_proxy:-${HTTP_PROXY:-}}
       https_proxy: ${https_proxy:-${HTTPS_PROXY:-}}
-      no_proxy: ${no_proxy:-${NO_PROXY:-127.0.0.1,localhost,database,php,front,pwa,local-project-manager.localhost,bme_network,ldap.groupegdb.local}}
+      no_proxy: ${no_proxy:-${NO_PROXY:-127.0.0.1,localhost,database,php,front,pwa,local-project-manager.localhost,bme_network,ldap.groupegdb.local,bm-energies.com,.bm-energies.com,.local}}
     volumes:
       - caddy_data:/data
       - caddy_config:/config
@@ -37,8 +37,9 @@ services:
       - "traefik.http.services.project-manager.loadbalancer.server.port=80"
       - "traefik.docker.network=bme_network"
     
+    extra_hosts:
+      - "px.groupegdb.local:172.18.0.30"
     networks:
-      app_network:
       bme_network:
         aliases:
           - local-project-manager.localhost
@@ -49,7 +50,6 @@ services:
     environment:
       NEXT_PUBLIC_ENTRYPOINT: https://local-project-manager.localhost
     networks:
-      - app_network
       - bme_network
   
   front:
@@ -58,7 +58,6 @@ services:
       NODE_ENV: development
       NUXT_PUBLIC_API_BASE: https://local-project-manager.localhost/api
     networks:
-      - app_network
       - bme_network
 
   e2e:
@@ -75,7 +74,6 @@ services:
       - DB_PASSWORD=!ChangeMe!
       - DB_NAME=app_test
     networks:
-      - app_network
       - bme_network
     depends_on:
       - php
@@ -97,7 +95,6 @@ services:
     volumes:
       - database_data:/var/lib/postgresql/data:rw
     networks:
-      - app_network
       - bme_network
       # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
       # - ./api/docker/db/data:/var/lib/postgresql/data:rw
@@ -116,6 +113,5 @@ volumes:
 ###> symfony/mercure-bundle ###
 ###< symfony/mercure-bundle ###
 networks:
-  app_network:
   bme_network:
     external: true
