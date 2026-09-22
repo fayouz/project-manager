@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden">
-    <UDashboardNavbar title="Détails Server">
+    <UDashboardNavbar title="Détails du serveur">
       <template #leading>
         <UDashboardSidebarCollapse class="lg:hidden" />
       </template>
@@ -33,6 +33,6 @@ definePageMeta({
 });
 
 useHead({
-  title: "Détails Server - Project Manager",
+  title: "Détails du serveur - Project Manager",
 });
 </script>

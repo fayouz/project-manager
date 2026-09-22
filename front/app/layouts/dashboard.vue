@@ -231,6 +231,21 @@ const navItems = [
       to: '/integrations'
     },
     {
+      label: 'Serveurs',
+      icon: 'i-heroicons-server',
+      to: '/servers'
+    },
+    {
+      label: 'Proxies',
+      icon: 'i-heroicons-globe-alt',
+      to: '/proxies'
+    },
+    {
+      label: 'Serveurs de déploiement',
+      icon: 'i-heroicons-server-stack',
+      to: '/deploymentservers'
+    },
+    {
       label: 'Utilisateurs',
       icon: 'i-heroicons-users',
       to: '/users'

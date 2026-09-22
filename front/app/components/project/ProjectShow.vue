@@ -143,7 +143,24 @@
         />
       </div>
 
-      <!-- Onglet 6 : Paramètres (Sous-layout avec menu vertical regroupant les intégrations) -->
+      <!-- Onglet Nexus : Nexus Repository (Contenu) -->
+      <div v-show="currentTab === 'nexus'">
+        <ProjectNexus
+          :project="item"
+          :project-integration="nexusPi"
+          @configure="setTab('settings', 'nexus')"
+        />
+      </div>
+
+      <!-- Onglet 6 : Déploiements & Staging (Contenu) -->
+      <div v-show="currentTab === 'deployments'">
+        <ProjectDeployments
+          :project="item"
+          @updated="loadStagingsCount"
+        />
+      </div>
+
+      <!-- Onglet 7 : Paramètres (Sous-layout avec menu vertical regroupant les intégrations) -->
       <div v-show="currentTab === 'settings'">
         <ProjectSettings
           :project="item"
@@ -475,6 +492,85 @@
             </div>
           </div>
 
+          <!-- Champs dédiés Nexus Repository -->
+          <div v-else-if="selectedIntegrationType === 'nexus'" class="space-y-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                <UIcon name="i-heroicons-cube" class="w-4 h-4 text-teal-500" />
+                Paramètres Nexus Repository
+              </p>
+              <div class="flex items-center gap-2">
+                <UButton
+                  v-if="!isManualNexusInput"
+                  variant="ghost"
+                  color="neutral"
+                  size="xs"
+                  icon="i-heroicons-arrow-path"
+                  :loading="isLoadingNexusRepos"
+                  title="Actualiser la liste des dépôts Nexus"
+                  @click="reloadNexusRepos"
+                />
+                <UButton
+                  variant="link"
+                  color="neutral"
+                  size="xs"
+                  :label="isManualNexusInput ? 'Choisir dans la liste' : 'Saisir manuellement le dépôt'"
+                  @click="isManualNexusInput = !isManualNexusInput"
+                />
+              </div>
+            </div>
+
+            <!-- Mode 1 : Saisie manuelle -->
+            <div v-if="isManualNexusInput" class="space-y-2">
+              <div class="space-y-1">
+                <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                  Nom du dépôt Nexus (repository) <span class="text-error-500">*</span>
+                </label>
+                <UInput
+                  v-model="formParamFields.repository"
+                  placeholder="ex: maven-releases ou npm-internal"
+                  class="w-full font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            <!-- Mode 2 : Sélecteur de dépôts -->
+            <div v-else class="space-y-1.5">
+              <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                Sélection du dépôt Nexus <span class="text-error-500">*</span>
+              </label>
+              <USelectMenu
+                v-model="formParamFields.repository"
+                :items="nexusSelectItems"
+                value-key="value"
+                searchable
+                searchable-placeholder="Rechercher un dépôt..."
+                placeholder="Sélectionner un dépôt Nexus..."
+                icon="i-heroicons-cube"
+                class="w-full"
+              />
+              <div class="flex items-center justify-between text-[11px] text-neutral-400">
+                <span>{{ nexusSelectItems.length }} dépôt(s) disponible(s)</span>
+                <span v-if="isLoadingNexusRepos" class="flex items-center gap-1 text-teal-600">
+                  <UIcon name="i-heroicons-arrow-path" class="w-3 h-3 animate-spin" />
+                  Chargement des dépôts...
+                </span>
+              </div>
+            </div>
+
+            <!-- Filtre groupe optionnel -->
+            <div class="space-y-1">
+              <label class="block text-xs text-neutral-600 dark:text-neutral-400">
+                Filtre de groupe de composants (optionnel)
+              </label>
+              <UInput
+                v-model="formParamFields.group"
+                placeholder="ex: com.bmenergies ou bm-energies"
+                class="w-full font-mono text-xs"
+              />
+            </div>
+          </div>
+
           <!-- Paramètres personnalisés / avancés -->
           <div class="pt-2 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
             <div class="flex items-center justify-between">
@@ -568,6 +664,8 @@ import ProjectGitea from "./ProjectGitea.vue";
 import ProjectSonarQube from "./ProjectSonarQube.vue";
 import ProjectMantis from "./ProjectMantis.vue";
 import ProjectJenkins from "./ProjectJenkins.vue";
+import ProjectNexus from "./ProjectNexus.vue";
+import ProjectDeployments from "./ProjectDeployments.vue";
 import ProjectSettings from "./ProjectSettings.vue";
 
 const props = defineProps<{
@@ -702,6 +800,12 @@ const jenkinsPi = computed(() => {
   return projectIntegrations.value.find((pi) => getIntegrationType(pi) === "jenkins") || null;
 });
 
+const nexusPi = computed(() => {
+  return projectIntegrations.value.find((pi) => getIntegrationType(pi) === "nexus") || null;
+});
+
+const stagingsCount = ref<number>(0);
+
 // Onglets du sous-menu avec badges dynamiques
 const subMenuTabs = computed(() => [
   {
@@ -736,6 +840,20 @@ const subMenuTabs = computed(() => [
     icon: "i-heroicons-arrow-path-rounded-square",
     badge: jenkinsPi.value ? "Lié" : undefined,
     badgeColor: "info" as const,
+  },
+  {
+    id: "nexus",
+    label: "Nexus",
+    icon: "i-heroicons-cube",
+    badge: nexusPi.value ? "Lié" : undefined,
+    badgeColor: "info" as const,
+  },
+  {
+    id: "deployments",
+    label: "Déploiements",
+    icon: "i-heroicons-rocket-launch",
+    badge: stagingsCount.value > 0 ? `${stagingsCount.value}` : undefined,
+    badgeColor: "primary" as const,
   },
   {
     id: "settings",
@@ -837,6 +955,47 @@ function reloadJenkinsFolders() {
   loadJenkinsFoldersIfNeeded();
 }
 
+// Store et gestion des dépôts Nexus
+const isManualNexusInput = ref(false);
+const isLoadingNexusRepos = ref(false);
+
+const nexusSelectItems = computed(() => {
+  const options = integrationProjectsStore.projects.map((p) => ({
+    label: `${p.name}`,
+    value: String(p.id),
+  }));
+
+  if (
+    formParamFields.value.repository &&
+    !options.some((o) => o.value === formParamFields.value.repository)
+  ) {
+    options.unshift({
+      label: `${formParamFields.value.repository} (personnalisé)`,
+      value: formParamFields.value.repository,
+    });
+  }
+
+  return options;
+});
+
+async function loadNexusReposIfNeeded() {
+  if (selectedIntegrationType.value !== "nexus") return;
+  const iri = formIntegrationIri.value;
+  const integrationId = getIdFromIri(iri);
+  if (!integrationId) return;
+
+  isLoadingNexusRepos.value = true;
+  try {
+    await integrationProjectsStore.fetchProjects(integrationId);
+  } finally {
+    isLoadingNexusRepos.value = false;
+  }
+}
+
+function reloadNexusRepos() {
+  loadNexusReposIfNeeded();
+}
+
 async function onJenkinsFolderChanged(newFolder: string) {
   formParamFields.value.folder = newFolder;
   if (!newFolder) {
@@ -865,6 +1024,8 @@ const formParamFields = ref({
   job: "",
   folder: "",
   project_id: "",
+  group: "",
+  format: "",
 });
 
 const customParamRows = ref<{ key: string; value: string }[]>([]);
@@ -894,6 +1055,8 @@ watch(
       loadMantisProjectsIfNeeded();
     } else if (newType === "jenkins" && newIri) {
       loadJenkinsFoldersIfNeeded();
+    } else if (newType === "nexus" && newIri) {
+      loadNexusReposIfNeeded();
     }
   }
 );
@@ -909,6 +1072,7 @@ function openLinkModal(defaultType?: string) {
   formError.value = null;
   isManualMantisInput.value = false;
   isManualJenkinsInput.value = false;
+  isManualNexusInput.value = false;
   discoveredJenkinsJobs.value = [];
 
   if (defaultType) {
@@ -927,6 +1091,8 @@ function openLinkModal(defaultType?: string) {
     job: "",
     folder: "",
     project_id: "",
+    group: "",
+    format: "",
   };
   customParamRows.value = [];
   isModalOpen.value = true;
@@ -939,6 +1105,10 @@ function openLinkModal(defaultType?: string) {
     nextTick(() => {
       loadJenkinsFoldersIfNeeded();
     });
+  } else if (defaultType?.toLowerCase() === "nexus" || selectedIntegrationType.value === "nexus") {
+    nextTick(() => {
+      loadNexusReposIfNeeded();
+    });
   }
 }
 
@@ -948,6 +1118,7 @@ function openEditModal(pi: ProjectIntegration) {
   formError.value = null;
   isManualMantisInput.value = false;
   isManualJenkinsInput.value = false;
+  isManualNexusInput.value = false;
   formIntegrationIri.value = typeof pi.integration === "object" ? pi.integration?.["@id"] : (pi.integration || "");
 
   const params = pi.parameters || {};
@@ -958,6 +1129,8 @@ function openEditModal(pi: ProjectIntegration) {
     job: params.job || params.job_name || "",
     folder: params.folder || params.folder_path || params.job_folder || "",
     project_id: params.project_id !== undefined ? String(params.project_id) : "",
+    group: params.group || "",
+    format: params.format || "",
   };
 
   if (params.jobs && Array.isArray(params.jobs)) {
@@ -966,7 +1139,7 @@ function openEditModal(pi: ProjectIntegration) {
     discoveredJenkinsJobs.value = [];
   }
 
-  const standardKeys = ["repository", "branch", "project_key", "job", "job_name", "folder", "folder_path", "job_folder", "jobs", "jobs_count", "project_id", "project_name"];
+  const standardKeys = ["repository", "branch", "project_key", "job", "job_name", "folder", "folder_path", "job_folder", "jobs", "jobs_count", "project_id", "project_name", "group", "format"];
   customParamRows.value = Object.entries(params)
     .filter(([k]) => !standardKeys.includes(k))
     .map(([key, value]) => ({ key, value: String(value) }));
@@ -983,6 +1156,10 @@ function openEditModal(pi: ProjectIntegration) {
       if (formParamFields.value.folder && discoveredJenkinsJobs.value.length === 0) {
         onJenkinsFolderChanged(formParamFields.value.folder);
       }
+    });
+  } else if (getIntegrationType(pi) === "nexus") {
+    nextTick(() => {
+      loadNexusReposIfNeeded();
     });
   }
 }
@@ -1042,6 +1219,16 @@ async function submitModal() {
       if (matched) {
         finalParameters.project_name = matched.name;
       }
+    }
+  } else if (type === "nexus") {
+    if (formParamFields.value.repository?.trim()) {
+      finalParameters.repository = formParamFields.value.repository.trim();
+    }
+    if (formParamFields.value.group?.trim()) {
+      finalParameters.group = formParamFields.value.group.trim();
+    }
+    if (formParamFields.value.format?.trim()) {
+      finalParameters.format = formParamFields.value.format.trim();
     }
   }
 
@@ -1126,7 +1313,23 @@ async function load() {
     }
   }
 
-  await Promise.all([loadProjectIntegrations(), loadAllIntegrations()]);
+  await Promise.all([loadProjectIntegrations(), loadAllIntegrations(), loadStagingsCount()]);
+}
+
+async function loadStagingsCount() {
+  const projectIri = item.value?.["@id"] || (currentId.value ? `/api/projects/${currentId.value}` : null);
+  if (!projectIri) return;
+
+  try {
+    const res: any = await $fetch(resolveApiUrl("/stagings"), {
+      params: { project: projectIri },
+      headers: { Accept: "application/ld+json" },
+    });
+    const list = res?.member || res?.["hydra:member"] || [];
+    stagingsCount.value = list.length;
+  } catch {
+    //
+  }
 }
 
 async function loadProjectIntegrations() {

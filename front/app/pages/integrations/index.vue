@@ -336,6 +336,8 @@ function getIntegrationIcon(type?: string): string {
       return "i-heroicons-bug-ant";
     case "sonarqube":
       return "i-heroicons-shield-check";
+    case "nexus":
+      return "i-heroicons-cube";
     default:
       return "i-heroicons-code-bracket";
   }
@@ -375,6 +377,8 @@ function getTypeColorClass(type?: string): string {
       return "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300";
     case "sonarqube":
       return "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300";
+    case "nexus":
+      return "bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300";
     default:
       return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300";
   }

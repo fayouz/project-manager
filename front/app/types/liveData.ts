@@ -191,6 +191,50 @@ export interface JenkinsLiveData {
   lastBuild?: JenkinsBuild | null;
 }
 
+export interface NexusRepository {
+  name: string;
+  format: string;
+  type: string;
+  url: string;
+  online: boolean;
+}
+
+export interface NexusAsset {
+  id: string;
+  downloadUrl: string;
+  path: string;
+  format: string;
+  fileSize?: number | null;
+  contentType: string;
+  lastModified: string;
+  checksum?: Record<string, string>;
+}
+
+export interface NexusComponent {
+  id: string;
+  repository: string;
+  format: string;
+  group: string;
+  name: string;
+  version: string;
+  assets: NexusAsset[];
+}
+
+export interface NexusLiveData {
+  repository?: string | null;
+  group?: string | null;
+  format?: string | null;
+  type?: string | null;
+  online?: boolean;
+  url: string;
+  baseUrl?: string;
+  repositories: NexusRepository[];
+  componentsCount: number;
+  components: NexusComponent[];
+  assetsCount: number;
+  assets: NexusAsset[];
+}
+
 export interface IntegrationLiveDataResponse<T = any> {
   success: boolean;
   type?: string;

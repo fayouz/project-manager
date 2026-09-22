@@ -171,6 +171,28 @@
               </UBadge>
             </UButton>
 
+            <!-- Nexus Repository -->
+            <UButton
+              :variant="activeSubTab === 'nexus' ? 'solid' : 'ghost'"
+              :color="activeSubTab === 'nexus' ? 'primary' : 'neutral'"
+              size="sm"
+              class="w-full justify-between text-xs font-medium"
+              @click="selectSubTab('nexus')"
+            >
+              <div class="flex items-center gap-2 truncate">
+                <UIcon name="i-heroicons-cube" class="w-4 h-4 text-teal-500 shrink-0" />
+                <span class="truncate">Nexus Repository</span>
+              </div>
+              <UBadge
+                :color="nexusPi ? 'info' : 'neutral'"
+                variant="subtle"
+                size="xs"
+                class="text-[10px] shrink-0"
+              >
+                {{ nexusPi ? 'Lié' : 'Non lié' }}
+              </UBadge>
+            </UButton>
+
             <!-- Autres intégrations personnalisées -->
             <UButton
               v-for="other in otherIntegrations"
@@ -1011,6 +1033,169 @@
         </UCard>
       </div>
 
+      <!-- 5. Paramètres Nexus Repository -->
+      <div v-show="activeSubTab === 'nexus'" class="space-y-6">
+        <!-- Si Nexus est lié -->
+        <div v-if="nexusPi" class="space-y-6">
+          <UCard :ui="{ body: 'p-5 sm:p-6 space-y-6' }">
+            <!-- En-tête du service -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-100 dark:border-neutral-800">
+              <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/20 shrink-0">
+                  <UIcon name="i-heroicons-cube" class="w-6 h-6" />
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <h3 class="text-base sm:text-lg font-bold text-neutral-900 dark:text-neutral-100">
+                      Connecteur Nexus Repository
+                    </h3>
+                    <UBadge color="info" variant="subtle" size="xs">
+                      Gestionnaire d'artefacts
+                    </UBadge>
+                    <UBadge
+                      :color="getHealthColor(nexusPi)"
+                      variant="soft"
+                      size="xs"
+                      class="flex items-center gap-1"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full" :class="getStatusDotClass(nexusHealthStatus)"></span>
+                      {{ getStatusLabel(nexusHealthStatus) }}
+                    </UBadge>
+                  </div>
+                  <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    Gestion de la liaison entre le projet et le gestionnaire d'artefacts Nexus.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 flex-wrap">
+                <UButton
+                  v-if="nexusExternalUrl"
+                  :to="nexusExternalUrl"
+                  target="_blank"
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                  icon="i-heroicons-arrow-top-right-on-square"
+                  label="Ouvrir Nexus"
+                />
+                <UButton
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                  icon="i-heroicons-arrow-path"
+                  :loading="isTestingNexus"
+                  label="Tester la santé"
+                  @click="testServiceHealth(nexusPi, 'nexus')"
+                />
+                <UButton
+                  color="primary"
+                  variant="solid"
+                  size="sm"
+                  icon="i-heroicons-pencil-square"
+                  label="Modifier les paramètres"
+                  @click="emit('edit-integration', nexusPi)"
+                />
+                <UButton
+                  color="error"
+                  variant="ghost"
+                  size="sm"
+                  icon="i-heroicons-trash"
+                  label="Dissocier"
+                  @click="emit('unlink-integration', nexusPi)"
+                />
+              </div>
+            </div>
+
+            <!-- Feedback de test de santé -->
+            <UAlert
+              v-if="nexusTestFeedback"
+              :color="nexusTestFeedback.success ? 'success' : 'error'"
+              :icon="nexusTestFeedback.success ? 'i-heroicons-check-circle' : 'i-heroicons-exclamation-triangle'"
+              variant="subtle"
+              :title="nexusTestFeedback.success ? 'Test de connectivité réussi' : 'Échec du test de connectivité'"
+              :description="nexusTestFeedback.message"
+              class="text-xs"
+              close
+              @close="nexusTestFeedback = null"
+            />
+
+            <!-- Configuration actuelle -->
+            <div class="space-y-4">
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                Configuration du dépôt
+              </h4>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/80">
+                  <p class="text-xs text-neutral-500">Dépôt cible (repository)</p>
+                  <p class="text-sm font-semibold font-mono text-neutral-900 dark:text-neutral-100 mt-1 truncate">
+                    {{ nexusPi.parameters?.repository || 'Non configuré' }}
+                  </p>
+                </div>
+                <div class="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/80">
+                  <p class="text-xs text-neutral-500">Groupe de composants</p>
+                  <p class="text-sm font-semibold font-mono text-neutral-900 dark:text-neutral-100 mt-1 truncate">
+                    {{ nexusPi.parameters?.group || 'Tous les groupes' }}
+                  </p>
+                </div>
+                <div class="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/80">
+                  <p class="text-xs text-neutral-500">Format</p>
+                  <p class="text-sm font-semibold font-mono text-neutral-900 dark:text-neutral-100 mt-1 truncate">
+                    {{ nexusPi.parameters?.format || 'Auto' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Serveur hébergeant l'instance Nexus -->
+            <div v-if="getServer(nexusPi)" class="space-y-4">
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                Serveur Nexus
+              </h4>
+              <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/80 dark:border-neutral-700/80 space-y-2">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div class="flex items-center gap-2">
+                    <UIcon name="i-heroicons-server" class="w-4 h-4 text-neutral-400 shrink-0" />
+                    <span class="text-neutral-500">Nom du serveur :</span>
+                    <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ getServerDisplayName(nexusPi) }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 font-mono text-neutral-600 dark:text-neutral-400">
+                    <span class="text-neutral-500 font-sans">Hôte :</span>
+                    <span>{{ getServerHostDisplay(nexusPi) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </UCard>
+        </div>
+
+        <!-- Si Nexus n'est pas lié -->
+        <UCard v-else :ui="{ body: 'p-8 sm:p-12 text-center' }">
+          <div class="max-w-md mx-auto space-y-4">
+            <div class="w-14 h-14 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center mx-auto border border-teal-500/20">
+              <UIcon name="i-heroicons-cube" class="w-7 h-7" />
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                Nexus Repository n'est pas encore associé
+              </h3>
+              <p class="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-relaxed">
+                Associez une instance Nexus pour consulter les artefacts publiés et les packages de vos dépendances.
+              </p>
+            </div>
+            <div class="pt-2">
+              <UButton
+                color="primary"
+                icon="i-heroicons-plus"
+                label="Associer Nexus Repository"
+                size="sm"
+                @click="emit('create-integration', 'nexus')"
+              />
+            </div>
+          </div>
+        </UCard>
+      </div>
+
       <!-- 6. Paramètres d'une autre intégration spécifique -->
       <div v-if="selectedOtherIntegration" class="space-y-6">
         <UCard :ui="{ body: 'p-5 sm:p-6 space-y-6' }">
@@ -1217,10 +1402,14 @@ const jenkinsPi = computed(() =>
   props.projectIntegrations.find((pi) => getIntegrationType(pi) === "jenkins")
 );
 
+const nexusPi = computed(() =>
+  props.projectIntegrations.find((pi) => getIntegrationType(pi) === "nexus")
+);
+
 const otherIntegrations = computed(() =>
   props.projectIntegrations.filter((pi) => {
     const t = getIntegrationType(pi);
-    return t !== "gitea" && t !== "sonarqube" && t !== "mantis" && t !== "jenkins";
+    return t !== "gitea" && t !== "sonarqube" && t !== "mantis" && t !== "jenkins" && t !== "nexus";
   })
 );
 
@@ -1239,12 +1428,14 @@ const giteaExternalUrl = computed(() => (giteaPi.value ? getExternalUrl(giteaPi.
 const sonarExternalUrl = computed(() => (sonarPi.value ? getExternalUrl(sonarPi.value) : null));
 const mantisExternalUrl = computed(() => (mantisPi.value ? getExternalUrl(mantisPi.value) : null));
 const jenkinsExternalUrl = computed(() => (jenkinsPi.value ? getExternalUrl(jenkinsPi.value) : null));
+const nexusExternalUrl = computed(() => (nexusPi.value ? getExternalUrl(nexusPi.value) : null));
 
 // Labels et présentations
 const giteaHealthStatus = computed(() => giteaPi.value?.status);
 const sonarHealthStatus = computed(() => sonarPi.value?.status);
 const mantisHealthStatus = computed(() => mantisPi.value?.status);
 const jenkinsHealthStatus = computed(() => jenkinsPi.value?.status);
+const nexusHealthStatus = computed(() => nexusPi.value?.status);
 
 const jenkinsFolderTarget = computed(() => {
   if (!jenkinsPi.value) return "Non configuré";
@@ -1329,6 +1520,9 @@ const mantisTestFeedback = ref<{ success: boolean; message: string } | null>(nul
 const isTestingJenkins = ref(false);
 const jenkinsTestFeedback = ref<{ success: boolean; message: string } | null>(null);
 
+const isTestingNexus = ref(false);
+const nexusTestFeedback = ref<{ success: boolean; message: string } | null>(null);
+
 function isTestingHealth(pi?: ProjectIntegration | null): boolean {
   if (!pi) return false;
   const t = getIntegrationType(pi);
@@ -1336,6 +1530,7 @@ function isTestingHealth(pi?: ProjectIntegration | null): boolean {
   if (t === "sonarqube") return isTestingSonar.value;
   if (t === "mantis") return isTestingMantis.value;
   if (t === "jenkins") return isTestingJenkins.value;
+  if (t === "nexus") return isTestingNexus.value;
   return false;
 }
 
@@ -1346,11 +1541,12 @@ function testHealth(pi?: ProjectIntegration | null) {
   if (t === "sonarqube") return testServiceHealth(pi, "sonar");
   if (t === "mantis") return testServiceHealth(pi, "mantis");
   if (t === "jenkins") return testServiceHealth(pi, "jenkins");
+  if (t === "nexus") return testServiceHealth(pi, "nexus");
 }
 
 async function testServiceHealth(
   pi: ProjectIntegration,
-  service: "gitea" | "sonar" | "mantis" | "jenkins"
+  service: "gitea" | "sonar" | "mantis" | "jenkins" | "nexus"
 ) {
   if (!pi.id) return;
 
@@ -1358,6 +1554,7 @@ async function testServiceHealth(
   if (service === "sonar") isTestingSonar.value = true;
   if (service === "mantis") isTestingMantis.value = true;
   if (service === "jenkins") isTestingJenkins.value = true;
+  if (service === "nexus") isTestingNexus.value = true;
 
   try {
     const res = await healthStore.checkHealth(pi.id);
@@ -1373,6 +1570,7 @@ async function testServiceHealth(
     if (service === "sonar") sonarTestFeedback.value = feedback;
     if (service === "mantis") mantisTestFeedback.value = feedback;
     if (service === "jenkins") jenkinsTestFeedback.value = feedback;
+    if (service === "nexus") nexusTestFeedback.value = feedback;
 
     emit("tested");
   } catch (err: any) {
@@ -1384,11 +1582,13 @@ async function testServiceHealth(
     if (service === "sonar") sonarTestFeedback.value = feedback;
     if (service === "mantis") mantisTestFeedback.value = feedback;
     if (service === "jenkins") jenkinsTestFeedback.value = feedback;
+    if (service === "nexus") nexusTestFeedback.value = feedback;
   } finally {
     if (service === "gitea") isTestingGitea.value = false;
     if (service === "sonar") isTestingSonar.value = false;
     if (service === "mantis") isTestingMantis.value = false;
     if (service === "jenkins") isTestingJenkins.value = false;
+    if (service === "nexus") isTestingNexus.value = false;
   }
 }
 </script>

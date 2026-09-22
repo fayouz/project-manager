@@ -11,7 +11,7 @@
         v-model="item.name"
         class="w-full"
         type="text"
-        placeholder="Ex: Jenkins Production, Forge Gitea, Mantis, SonarQube"
+        placeholder="Ex: Jenkins Production, Forge Gitea, Mantis, SonarQube, Nexus"
         required
       />
     </UFormField>
@@ -74,6 +74,23 @@
         </div>
       </div>
     </div>
+
+    <!-- Surcharge du proxy pour cette intégration -->
+    <UFormField
+      label="Surcharge du proxy réseau (optionnel)"
+      name="proxy"
+      :error="violations?.proxy"
+      description="Par défaut, les requêtes héritent du proxy configuré sur le serveur associé."
+    >
+      <USelect
+        v-model="selectedProxyIri"
+        :items="proxyOptions"
+        value-key="value"
+        label-key="label"
+        class="w-full"
+        placeholder="Choisir un proxy pour cette intégration..."
+      />
+    </UFormField>
 
     <!-- Activation -->
     <div class="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
@@ -154,6 +171,7 @@ const typeOptions = [
   { label: "Gitea", value: "gitea" },
   { label: "Mantis Bug Tracker", value: "mantis" },
   { label: "SonarQube", value: "sonarqube" },
+  { label: "Nexus Repository", value: "nexus" },
 ];
 
 const item = ref<any>({
@@ -166,15 +184,29 @@ const item = ref<any>({
   status: props.values?.status || "unknown",
 });
 
-// Charger la liste des serveurs disponibles
+// Charger la liste des serveurs et proxies disponibles
 const serversData = ref<any>(null);
+const proxiesData = ref<any[]>([]);
+const selectedProxyIri = ref<string>(
+  props.values?.proxy
+    ? typeof props.values.proxy === "object"
+      ? props.values.proxy["@id"]
+      : props.values.proxy
+    : ""
+);
+
 try {
   const token = useCookie<string | null>("jwt_token").value;
   const headers: Record<string, string> = {
     Accept: "application/ld+json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  serversData.value = await $fetch<any>(`${ENTRYPOINT}/servers`, { headers });
+  const [srvRes, prxRes] = await Promise.all([
+    $fetch<any>(`${ENTRYPOINT}/servers`, { headers }).catch(() => null),
+    $fetch<any>(`${ENTRYPOINT}/proxies`, { headers }).catch(() => null),
+  ]);
+  serversData.value = srvRes;
+  proxiesData.value = prxRes?.member || prxRes?.["hydra:member"] || [];
 } catch {
   // Non-bloquant pour le formulaire
 }
@@ -190,6 +222,18 @@ const serverOptions = computed(() => {
   }));
 });
 
+const proxyOptions = computed(() => {
+  return [
+    { label: "Hériter du serveur associé (Recommandé)", value: "" },
+    ...proxiesData.value
+      .filter((p: any) => p.enabled !== false)
+      .map((p: any) => ({
+        label: `${p.name} (${p.url})`,
+        value: p["@id"],
+      })),
+  ];
+});
+
 const selectedServerInfo = computed(() => {
   if (!item.value.server) return null;
   return serverMembers.value.find((s: any) => s["@id"] === item.value.server) || null;
@@ -203,6 +247,11 @@ watch(
         ...newVal,
         server: typeof newVal.server === "object" ? newVal.server?.["@id"] : (newVal.server || null),
       };
+      selectedProxyIri.value = newVal.proxy
+        ? typeof newVal.proxy === "object"
+          ? newVal.proxy["@id"]
+          : newVal.proxy
+        : "";
     }
   },
   { immediate: true, deep: true }
@@ -235,6 +284,7 @@ async function onTestConnection() {
       testResult.value = await testStore.testTransient({
         type: item.value.type,
         server: item.value.server,
+        proxy: selectedProxyIri.value || null,
       });
     }
   } catch (err: any) {
@@ -258,6 +308,7 @@ function emitSubmit() {
     type: item.value.type,
     enabled: Boolean(item.value.enabled),
     server: item.value.server,
+    proxy: selectedProxyIri.value ? selectedProxyIri.value : null,
   };
 
   emit("submit", payload);

@@ -1,5 +1,45 @@
 <template>
   <div class="space-y-6 w-full">
+    <!-- Onglets internes du Dashboard de projet -->
+    <div class="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
+      <UButton
+        :variant="dashboardTab === 'overview' ? 'solid' : 'ghost'"
+        :color="dashboardTab === 'overview' ? 'primary' : 'neutral'"
+        size="sm"
+        icon="i-heroicons-squares-2x2"
+        label="Vue d'ensemble"
+        @click="dashboardTab = 'overview'"
+      />
+      <UButton
+        :variant="dashboardTab === 'deployments' ? 'solid' : 'ghost'"
+        :color="dashboardTab === 'deployments' ? 'primary' : 'neutral'"
+        size="sm"
+        icon="i-heroicons-rocket-launch"
+        label="Déploiements"
+        @click="dashboardTab = 'deployments'"
+      >
+        <UBadge
+          v-if="projectStagings.length > 0"
+          color="primary"
+          variant="subtle"
+          size="xs"
+          class="ml-1"
+        >
+          {{ projectStagings.length }}
+        </UBadge>
+      </UButton>
+    </div>
+
+    <!-- Contenu de l'onglet Déploiements -->
+    <div v-if="dashboardTab === 'deployments'">
+      <ProjectDeployments
+        :project="project"
+        @updated="loadProjectStagings"
+      />
+    </div>
+
+    <!-- Contenu de la Vue d'ensemble -->
+    <div v-else class="space-y-6">
     <!-- Bannière de synthèse du projet -->
     <div class="p-6 rounded-2xl bg-gradient-to-r from-primary-600/10 via-primary-500/5 to-transparent border border-primary-500/20">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -43,7 +83,7 @@
     <!-- Cartes KPI rapides en haut du dashboard -->
     <div
       class="grid grid-cols-1 sm:grid-cols-2 gap-4"
-      :class="jenkinsPi ? 'lg:grid-cols-5' : 'lg:grid-cols-4'"
+      :class="nexusPi && jenkinsPi ? 'lg:grid-cols-7' : ((nexusPi || jenkinsPi) ? 'lg:grid-cols-6' : 'lg:grid-cols-5')"
     >
       <!-- KPI 1 : Intégrations -->
       <UCard
@@ -64,6 +104,29 @@
           </div>
           <div class="w-11 h-11 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 flex items-center justify-center">
             <UIcon name="i-heroicons-puzzle-piece" class="w-6 h-6" />
+          </div>
+        </div>
+      </UCard>
+
+      <!-- KPI 2 : Déploiements (Staging) -->
+      <UCard
+        class="cursor-pointer transition hover:border-primary-500/50 hover:shadow-sm"
+        :ui="{ body: 'p-4 sm:p-5' }"
+        @click="dashboardTab = 'deployments'"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Déploiements</p>
+            <p class="text-2xl font-bold mt-1 text-neutral-900 dark:text-neutral-100">
+              {{ projectStagings.length }}
+            </p>
+            <p class="text-xs text-primary-600 dark:text-primary-400 mt-1 flex items-center gap-1 font-medium">
+              <UIcon name="i-heroicons-rocket-launch" class="w-3.5 h-3.5" />
+              <span>{{ activeStagingsCount }} actif(s)</span>
+            </p>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <UIcon name="i-heroicons-rocket-launch" class="w-6 h-6" />
           </div>
         </div>
       </UCard>
@@ -166,6 +229,30 @@
           </div>
           <div class="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
             <UIcon name="i-heroicons-arrow-path-rounded-square" class="w-6 h-6" />
+          </div>
+        </div>
+      </UCard>
+
+      <!-- KPI 6 : Nexus Repository (si configuré) -->
+      <UCard
+        v-if="nexusPi"
+        class="cursor-pointer transition hover:border-teal-500/50 hover:shadow-sm"
+        :ui="{ body: 'p-4 sm:p-5' }"
+        @click="emit('switch-tab', 'nexus')"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Nexus Repository</p>
+            <p class="text-sm font-bold mt-1 text-neutral-900 dark:text-neutral-100 truncate max-w-[150px]">
+              {{ nexusRepoDisplay || 'Non configuré' }}
+            </p>
+            <p class="text-xs text-teal-600 dark:text-teal-400 mt-1 flex items-center gap-1 font-medium">
+              <UIcon name="i-heroicons-cube" class="w-3.5 h-3.5" />
+              <span>{{ nexusComponentsCount }} composant(s)</span>
+            </p>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+            <UIcon name="i-heroicons-cube" class="w-6 h-6" />
           </div>
         </div>
       </UCard>
@@ -509,6 +596,85 @@
           />
         </div>
       </UCard>
+
+      <!-- 5. Widget Nexus Repository -->
+      <UCard :ui="{ body: 'p-5 space-y-4 flex flex-col justify-between h-full' }">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                <UIcon name="i-heroicons-cube" class="w-5 h-5" />
+              </div>
+              <div>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-neutral-100">Nexus Repository</h4>
+                <p class="text-[11px] text-neutral-500">Dépôts & Artefacts</p>
+              </div>
+            </div>
+            <UBadge
+              :color="nexusPi ? 'info' : 'neutral'"
+              variant="subtle"
+              size="xs"
+            >
+              {{ nexusPi ? 'Connecté' : 'Non lié' }}
+            </UBadge>
+          </div>
+
+          <div v-if="nexusPi" class="mt-4 space-y-3">
+            <div class="bg-neutral-50 dark:bg-neutral-900/60 p-3 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60">
+              <div class="flex items-center justify-between">
+                <p class="text-[11px] text-neutral-500 font-medium">Dépôt Nexus</p>
+                <UBadge color="info" variant="subtle" size="xs">
+                  {{ nexusComponentsCount }} composant(s)
+                </UBadge>
+              </div>
+              <p class="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate mt-0.5" :title="nexusRepo">
+                {{ nexusRepoDisplay }}
+              </p>
+              <p class="text-[11px] text-neutral-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                <span class="text-teal-600 font-medium">{{ nexusAssetsCount }} artefact(s)</span>
+                <span v-if="nexusFormat" class="text-neutral-400">• Format : {{ nexusFormat }}</span>
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <UButton
+                v-if="nexusExternalUrl"
+                :to="nexusExternalUrl"
+                target="_blank"
+                size="xs"
+                color="primary"
+                variant="soft"
+                icon="i-heroicons-arrow-top-right-on-square"
+                label="Ouvrir Nexus"
+                class="flex-1 justify-center"
+              />
+            </div>
+          </div>
+
+          <div v-else class="mt-4 py-4 text-center space-y-2">
+            <p class="text-xs text-neutral-500">Consultez vos artefacts et packages publiés.</p>
+            <UButton
+              size="xs"
+              color="primary"
+              variant="soft"
+              icon="i-heroicons-plus"
+              label="Associer Nexus"
+              @click="emit('link-tool', 'nexus')"
+            />
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex justify-end">
+          <UButton
+            variant="ghost"
+            color="neutral"
+            size="xs"
+            icon="i-heroicons-arrow-right"
+            label="Vue détaillée Nexus"
+            @click="emit('switch-tab', 'nexus')"
+          />
+        </div>
+      </UCard>
     </div>
 
     <!-- Section secondaire : Informations & Intégrations supplémentaires -->
@@ -616,16 +782,20 @@
         </div>
       </UCard>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import type { Project } from "~/types/project";
 import type { ProjectIntegration } from "~/types/projectIntegration";
 import type { Integration } from "~/types/integration";
+import type { Staging } from "~/types/staging";
+import ProjectDeployments from "./ProjectDeployments.vue";
+import { resolveApiUrl } from "~/utils/config";
 import { useProjectIntegrationLiveDataStore } from "~/stores/projectIntegration/liveData";
-import type { GiteaLiveData, SonarQubeLiveData, MantisLiveData, JenkinsLiveData } from "~/types/liveData";
+import type { GiteaLiveData, SonarQubeLiveData, MantisLiveData, JenkinsLiveData, NexusLiveData } from "~/types/liveData";
 import {
   getIntegration,
   getIntegrationType,
@@ -650,6 +820,31 @@ const emit = defineEmits<{
   (e: "edit-pi", pi: ProjectIntegration): void;
   (e: "edit-project"): void;
 }>();
+
+// Onglet interne Dashboard (Vue d'ensemble / Déploiements)
+const dashboardTab = ref<"overview" | "deployments">("overview");
+const projectStagings = ref<Staging[]>([]);
+
+const activeStagingsCount = computed(() => {
+  return projectStagings.value.filter(
+    (s) => s.status === "active" || s.status === "deployed"
+  ).length;
+});
+
+async function loadProjectStagings() {
+  const projectIri = props.project?.["@id"] || (props.project?.id ? `/api/projects/${props.project.id}` : null);
+  if (!projectIri) return;
+
+  try {
+    const res: any = await $fetch(resolveApiUrl("/stagings"), {
+      params: { project: projectIri },
+      headers: { Accept: "application/ld+json" },
+    });
+    projectStagings.value = res?.member || res?.["hydra:member"] || [];
+  } catch {
+    //
+  }
+}
 
 const organisationName = computed(() => {
   const org = props.project.organisation;
@@ -758,6 +953,37 @@ const jenkinsExternalUrl = computed(() => {
   return jenkinsPi.value ? getExternalUrl(jenkinsPi.value) : null;
 });
 
+// Nexus
+const nexusPi = computed(() => {
+  return props.projectIntegrations.find((pi) => getIntegrationType(pi) === "nexus");
+});
+
+const nexusRepo = computed(() => {
+  return nexusLiveData.value?.repository || nexusPi.value?.parameters?.repository || "";
+});
+
+const nexusFormat = computed(() => {
+  return nexusLiveData.value?.format || nexusPi.value?.parameters?.format || "";
+});
+
+const nexusRepoDisplay = computed(() => {
+  if (nexusRepo.value) return nexusRepo.value;
+  return "Nexus Repository";
+});
+
+const nexusComponentsCount = computed(() => {
+  return nexusLiveData.value?.componentsCount ?? nexusLiveData.value?.components?.length ?? 0;
+});
+
+const nexusAssetsCount = computed(() => {
+  return nexusLiveData.value?.assetsCount ?? nexusLiveData.value?.assets?.length ?? 0;
+});
+
+const nexusExternalUrl = computed(() => {
+  if (nexusLiveData.value?.url) return nexusLiveData.value.url;
+  return nexusPi.value ? getExternalUrl(nexusPi.value) : null;
+});
+
 const liveDataStore = useProjectIntegrationLiveDataStore();
 
 const giteaLiveData = computed<GiteaLiveData | undefined>(() =>
@@ -772,21 +998,34 @@ const mantisLiveData = computed<MantisLiveData | undefined>(() =>
 const jenkinsLiveData = computed<JenkinsLiveData | undefined>(() =>
   jenkinsPi.value?.id ? liveDataStore.getData<JenkinsLiveData>(jenkinsPi.value.id) : undefined
 );
+const nexusLiveData = computed<NexusLiveData | undefined>(() =>
+  nexusPi.value?.id ? liveDataStore.getData<NexusLiveData>(nexusPi.value.id) : undefined
+);
 
 onMounted(() => {
   if (giteaPi.value?.id) liveDataStore.fetchLiveData<GiteaLiveData>(giteaPi.value.id);
   if (sonarPi.value?.id) liveDataStore.fetchLiveData<SonarQubeLiveData>(sonarPi.value.id);
   if (mantisPi.value?.id) liveDataStore.fetchLiveData<MantisLiveData>(mantisPi.value.id);
   if (jenkinsPi.value?.id) liveDataStore.fetchLiveData<JenkinsLiveData>(jenkinsPi.value.id);
+  if (nexusPi.value?.id) liveDataStore.fetchLiveData<NexusLiveData>(nexusPi.value.id);
+  loadProjectStagings();
 });
 
 watch(
-  () => [giteaPi.value?.id, sonarPi.value?.id, mantisPi.value?.id, jenkinsPi.value?.id],
-  ([gId, sId, mId, jId]) => {
+  () => [giteaPi.value?.id, sonarPi.value?.id, mantisPi.value?.id, jenkinsPi.value?.id, nexusPi.value?.id],
+  ([gId, sId, mId, jId, nId]) => {
     if (gId) liveDataStore.fetchLiveData<GiteaLiveData>(gId);
     if (sId) liveDataStore.fetchLiveData<SonarQubeLiveData>(sId);
     if (mId) liveDataStore.fetchLiveData<MantisLiveData>(mId);
     if (jId) liveDataStore.fetchLiveData<JenkinsLiveData>(jId);
+    if (nId) liveDataStore.fetchLiveData<NexusLiveData>(nId);
+  }
+);
+
+watch(
+  () => props.project?.["@id"],
+  () => {
+    loadProjectStagings();
   }
 );
 

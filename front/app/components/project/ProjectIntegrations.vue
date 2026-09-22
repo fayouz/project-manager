@@ -182,7 +182,7 @@
             Aucune intégration associée
           </h3>
           <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1.5 leading-relaxed">
-            Associez des outils DevOps à ce projet (Gitea pour le code, SonarQube pour l'analyse de qualité, Mantis BT pour le suivi des bogues, Jenkins pour l'intégration continue).
+            Associez des outils DevOps à ce projet (Gitea pour le code, SonarQube pour l'analyse de qualité, Mantis BT pour le suivi des bogues, Jenkins pour l'intégration continue, Nexus pour les dépôts d'artefacts).
           </p>
         </div>
 

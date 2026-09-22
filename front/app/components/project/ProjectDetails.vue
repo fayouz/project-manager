@@ -142,7 +142,7 @@
         </UBadge>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/80 flex items-center gap-3">
           <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
             <UIcon name="i-heroicons-code-bracket" class="w-5 h-5" />
@@ -187,6 +187,18 @@
             <p class="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium truncate">CI / CD</p>
             <p class="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">
               {{ hasJenkins ? 'Jenkins lié' : 'Non configuré' }}
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/80 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+            <UIcon name="i-heroicons-cube" class="w-5 h-5" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium truncate">Artefacts</p>
+            <p class="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">
+              {{ hasNexus ? 'Nexus lié' : 'Non configuré' }}
             </p>
           </div>
         </div>
@@ -251,6 +263,10 @@ const hasMantis = computed(() => {
 
 const hasJenkins = computed(() => {
   return props.projectIntegrations.some((pi) => getIntegrationType(pi) === "jenkins");
+});
+
+const hasNexus = computed(() => {
+  return props.projectIntegrations.some((pi) => getIntegrationType(pi) === "nexus");
 });
 
 function copyIri() {

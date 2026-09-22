@@ -122,6 +122,32 @@
       </div>
 
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt class="text-sm font-medium text-neutral-500">Proxy réseau</dt>
+        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
+          <div v-if="item.proxy" class="flex items-center gap-2">
+            <UBadge color="primary" variant="subtle" size="sm">
+              <UIcon name="i-heroicons-globe-alt" class="size-3.5 mr-1 inline" />
+              {{ typeof item.proxy === 'object' ? item.proxy.name : item.proxy }}
+            </UBadge>
+            <span v-if="typeof item.proxy === 'object' && item.proxy.url" class="text-xs font-mono text-neutral-500">
+              ({{ item.proxy.url }})
+            </span>
+            <span class="text-xs text-primary font-medium">(Surcharge spécifique)</span>
+          </div>
+          <div v-else-if="typeof item.server === 'object' && item.server?.proxy" class="flex items-center gap-2">
+            <UBadge color="neutral" variant="subtle" size="sm">
+              <UIcon name="i-heroicons-globe-alt" class="size-3.5 mr-1 inline" />
+              {{ typeof item.server.proxy === 'object' ? item.server.proxy.name : item.server.proxy }}
+            </UBadge>
+            <span class="text-xs text-neutral-500">(Hérité du serveur)</span>
+          </div>
+          <span v-else class="text-neutral-500 text-sm">
+            Hérité du serveur associé
+          </span>
+        </dd>
+      </div>
+
+      <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
         <dt class="text-sm font-medium text-neutral-500">Dernière vérification</dt>
         <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
           {{ item.lastCheckedAt ? formatDateTime(item.lastCheckedAt) : "Jamais testé" }}

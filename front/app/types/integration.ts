@@ -14,6 +14,7 @@ export interface Integration extends Item {
   type?: string;
   enabled?: boolean;
   server?: string | Server;
+  proxy?: any;
   status?: string;
   statusMessage?: string;
   lastCheckedAt?: string;

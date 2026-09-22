@@ -131,6 +131,12 @@ export function getExternalUrl(pi: ProjectIntegration): string | null {
   if (type === "mantis" && params.project_id) {
     return `${baseUrl}/view_all_bug_page.php?project_id=${encodeURIComponent(params.project_id)}`;
   }
+  if (type === "nexus") {
+    if (params.repository) {
+      return `${baseUrl}/#browse/browse:${encodeURIComponent(params.repository)}`;
+    }
+    return baseUrl;
+  }
 
   return baseUrl;
 }
@@ -145,6 +151,8 @@ export function getTypeIcon(type?: string): string {
       return "i-heroicons-bug-ant";
     case "sonarqube":
       return "i-heroicons-shield-check";
+    case "nexus":
+      return "i-heroicons-cube";
     default:
       return "i-heroicons-puzzle-piece";
   }
@@ -160,6 +168,8 @@ export function getTypeBadgeColor(type?: string): "warning" | "info" | "success"
       return "success";
     case "sonarqube":
       return "primary";
+    case "nexus":
+      return "info";
     default:
       return "neutral";
   }
@@ -175,6 +185,8 @@ export function getTypeBgClass(type?: string): string {
       return "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50";
     case "sonarqube":
       return "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50";
+    case "nexus":
+      return "bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-900/50";
     default:
       return "bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700";
   }
@@ -222,6 +234,8 @@ export function isStandardParam(key: string, type?: string): boolean {
       return key === "folder" || key === "folder_path" || key === "job" || key === "job_name" || key === "jobs" || key === "jobs_count";
     case "mantis":
       return key === "project_id" || key === "project_name";
+    case "nexus":
+      return key === "repository" || key === "group" || key === "format";
     default:
       return false;
   }
@@ -236,6 +250,9 @@ export function formatParamKey(key: string, type?: string): string {
   if (type === "jenkins" && (key === "job" || key === "job_name")) return "Nom du Job Jenkins";
   if (type === "mantis" && key === "project_id") return "Identifiant Mantis";
   if (type === "mantis" && key === "project_name") return "Nom du projet Mantis";
+  if (type === "nexus" && key === "repository") return "Dépôt Nexus (repository)";
+  if (type === "nexus" && key === "group") return "Groupe de composants";
+  if (type === "nexus" && key === "format") return "Format du dépôt";
   return key;
 }
 
@@ -272,6 +289,12 @@ export function getTargetDisplay(pi?: ProjectIntegration | null): string {
       return count > 0 ? `${f} (${count} job${count > 1 ? "s" : ""})` : f;
     }
     return params.job_name || params.job || "Non configuré";
+  }
+
+  if (type === "nexus") {
+    if (params.repository && params.group) return `${params.repository} (${params.group})`;
+    if (params.repository) return params.repository;
+    return "Non configuré";
   }
 
   const values = Object.values(params);

@@ -51,6 +51,7 @@ export const useIntegrationTestStore = defineStore("integrationTest", {
     async testTransient(payload: {
       type: string;
       server?: string | number | null;
+      proxy?: string | number | null;
     }): Promise<ConnectionTestResult> {
       this.isLoading = true;
       this.error = undefined;

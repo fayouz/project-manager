@@ -27,9 +27,17 @@ export interface JenkinsIntegrationParam extends IntegrationParamInterface {
   job?: string;
 }
 
+export interface NexusIntegrationParam extends IntegrationParamInterface {
+  type: "nexus";
+  repository?: string;
+  group?: string;
+  format?: string;
+}
+
 export type AnyIntegrationParam =
   | MantisIntegrationParam
   | GiteaIntegrationParam
   | SonarQubeIntegrationParam
   | JenkinsIntegrationParam
+  | NexusIntegrationParam
   | IntegrationParamInterface;
