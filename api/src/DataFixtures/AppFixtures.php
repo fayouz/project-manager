@@ -27,6 +27,7 @@ class AppFixtures extends Fixture
         $authTypes = [
             'Basic',
             'Token',
+            'Aucune',
         ];
 
         foreach ($authTypes as $authTypeName) {

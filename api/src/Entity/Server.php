@@ -57,6 +57,11 @@ class Server
     #[Groups(['server:read', 'server:write', 'integration:read', 'project_integration:read'])]
     private ?ServerAuthenticationType $authenticationType = null;
 
+    #[ORM\ManyToOne(targetEntity: Proxy::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    #[Groups(['server:read', 'server:write', 'integration:read', 'project_integration:read'])]
+    private ?Proxy $proxy = null;
+
     /**
      * @var Collection<int, Integration>
      */
@@ -165,6 +170,18 @@ class Server
     public function setAuthenticationType(?ServerAuthenticationType $authenticationType): static
     {
         $this->authenticationType = $authenticationType;
+
+        return $this;
+    }
+
+    public function getProxy(): ?Proxy
+    {
+        return $this->proxy;
+    }
+
+    public function setProxy(?Proxy $proxy): static
+    {
+        $this->proxy = $proxy;
 
         return $this;
     }

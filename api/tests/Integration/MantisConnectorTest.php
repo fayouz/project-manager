@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Entity\Integration;
+use App\Entity\Proxy;
 use App\Entity\Server;
 use App\Entity\ServerAuthenticationType;
 use App\Integration\Connector\MantisConnector;
@@ -476,5 +477,41 @@ XML;
         $this->assertFalse($result->success);
         $this->assertSame('error', $result->status);
         $this->assertStringContainsString('Le projet Mantis #9999 est introuvable', $result->message);
+    }
+
+    public function testProxyUsedFromIntegrationOverride(): void
+    {
+        $capturedOptions = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions): MockResponse {
+            $capturedOptions = $options;
+
+            return new MockResponse(json_encode(['version' => '2.27.1'], JSON_THROW_ON_ERROR), [
+                'http_code' => 200,
+                'response_headers' => ['content-type' => 'application/json', 'x-mantis-version' => '2.27.1'],
+            ]);
+        });
+
+        $serverProxy = new Proxy();
+        $serverProxy->setUrl('http://server-proxy:8080');
+        $serverProxy->setEnabled(true);
+
+        $integrationProxy = new Proxy();
+        $integrationProxy->setUrl('http://integration-proxy:8080');
+        $integrationProxy->setEnabled(true);
+
+        $server = new Server();
+        $server->setHost('external-mantis.com');
+        $server->setProxy($serverProxy);
+
+        $integration = new Integration();
+        $integration->setType('mantis');
+        $integration->setServer($server);
+        $integration->setProxy($integrationProxy);
+
+        $connector = new MantisConnector($httpClient);
+        $connector->testConnection($integration);
+
+        $this->assertArrayHasKey('proxy', $capturedOptions);
+        $this->assertSame('http://integration-proxy:8080', $capturedOptions['proxy']);
     }
 }

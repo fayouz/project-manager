@@ -8,19 +8,24 @@ use App\Entity\Integration;
 use App\Entity\IntegrationParamInterface;
 use App\Entity\SonarQubeIntegrationParam;
 use App\Integration\Dto\ConnectionTestResult;
+use App\Service\ProxyResolver;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class SonarQubeConnector implements IntegrationConnectorInterface
 {
+    private readonly ProxyResolver $proxyResolver;
+
     public function __construct(
-        private readonly HttpClientInterface $httpClient
+        private readonly HttpClientInterface $httpClient,
+        ?ProxyResolver $proxyResolver = null,
     ) {
+        $this->proxyResolver = $proxyResolver ?? new ProxyResolver();
     }
 
     public function supports(string $type): bool
     {
-        return strtolower($type) === 'sonarqube';
+        return 'sonarqube' === strtolower($type);
     }
 
     public function getType(): string
@@ -36,12 +41,12 @@ class SonarQubeConnector implements IntegrationConnectorInterface
     public function testConnection(Integration $integration): ConnectionTestResult
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return ConnectionTestResult::failure("Aucun serveur n'est associé à cette intégration.");
         }
 
         $baseUrl = $this->resolveBaseUrl($integration);
-        if ($baseUrl === null || $baseUrl === '') {
+        if (null === $baseUrl || '' === $baseUrl) {
             return ConnectionTestResult::failure("L'hôte du serveur n'est pas renseigné pour SonarQube.");
         }
 
@@ -59,28 +64,23 @@ class SonarQubeConnector implements IntegrationConnectorInterface
             ],
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $baseRequestOptions['proxy'] = '';
-            } else {
-                $baseRequestOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $baseRequestOptions['proxy'] = $proxyOptions['proxy'];
         }
 
         try {
             // 1. Check system status & version
-            $statusResponse = $this->httpClient->request('GET', $baseUrl . '/api/system/status', $baseRequestOptions);
+            $statusResponse = $this->httpClient->request('GET', $baseUrl.'/api/system/status', $baseRequestOptions);
             $statusCode = $statusResponse->getStatusCode();
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Instance SonarQube introuvable à l'adresse %s (HTTP 404).", $baseUrl)
                 );
             }
 
-            if ($statusCode !== 200) {
+            if (200 !== $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf('Le serveur SonarQube a répondu avec le statut HTTP %d.', $statusCode)
                 );
@@ -90,47 +90,47 @@ class SonarQubeConnector implements IntegrationConnectorInterface
             $systemStatus = $statusData['status'] ?? null;
             $version = $statusData['version'] ?? null;
 
-            if ($systemStatus !== null && $systemStatus !== 'UP') {
+            if (null !== $systemStatus && 'UP' !== $systemStatus) {
                 return ConnectionTestResult::failure(
                     sprintf("Le serveur SonarQube n'est pas opérationnel (état: %s).", $systemStatus)
                 );
             }
 
             // 2. Validate authentication if credentials or token provided
-            $hasToken = $authTypeName === 'Token' || (!empty($token) && empty($username));
+            $hasToken = 'Token' === $authTypeName || (!empty($token) && empty($username));
             $hasBasic = !empty($username) && !empty($token);
 
             if ($hasToken || $hasBasic) {
                 $authOptions = $baseRequestOptions;
 
-                if ($hasBasic && $authTypeName !== 'Token') {
+                if ($hasBasic && 'Token' !== $authTypeName) {
                     $authOptions['auth_basic'] = [(string) $username, (string) $token];
                 } else {
                     $cleanToken = trim((string) $token);
-                    $authOptions['headers']['Authorization'] = 'Bearer ' . $cleanToken;
+                    $authOptions['headers']['Authorization'] = 'Bearer '.$cleanToken;
                 }
 
-                $userResponse = $this->httpClient->request('GET', $baseUrl . '/api/users/current', $authOptions);
+                $userResponse = $this->httpClient->request('GET', $baseUrl.'/api/users/current', $authOptions);
                 $userStatusCode = $userResponse->getStatusCode();
 
                 // If Bearer failed with 401, fallback to token in basic auth (token:)
-                if ($userStatusCode === 401 && $hasToken) {
+                if (401 === $userStatusCode && $hasToken) {
                     $fallbackOptions = $baseRequestOptions;
                     $fallbackOptions['auth_basic'] = [trim((string) $token), ''];
-                    $userResponse = $this->httpClient->request('GET', $baseUrl . '/api/users/current', $fallbackOptions);
+                    $userResponse = $this->httpClient->request('GET', $baseUrl.'/api/users/current', $fallbackOptions);
                     $userStatusCode = $userResponse->getStatusCode();
-                    if ($userStatusCode === 200) {
+                    if (200 === $userStatusCode) {
                         $authOptions = $fallbackOptions;
                     }
                 }
 
-                if ($userStatusCode === 401 || $userStatusCode === 403) {
+                if (401 === $userStatusCode || 403 === $userStatusCode) {
                     return ConnectionTestResult::failure(
                         sprintf("Échec d'authentification SonarQube (HTTP %d) : identifiants ou jeton d'accès invalides.", $userStatusCode)
                     );
                 }
 
-                if ($userStatusCode !== 200) {
+                if (200 !== $userStatusCode) {
                     return ConnectionTestResult::failure(
                         sprintf('Le serveur SonarQube a répondu avec le statut HTTP %d lors de la vérification du compte.', $userStatusCode)
                     );
@@ -151,13 +151,13 @@ class SonarQubeConnector implements IntegrationConnectorInterface
                 $projectCount = $this->fetchProjectsCount($baseUrl, $authOptions);
 
                 $message = 'Connexion réussie à SonarQube';
-                if ($version !== null) {
+                if (null !== $version) {
                     $message .= sprintf(' (version %s)', $version);
                 }
-                if ($authenticatedUsername !== null && $authenticatedUsername !== '') {
+                if (null !== $authenticatedUsername && '' !== $authenticatedUsername) {
                     $message .= sprintf(' pour le compte %s', $authenticatedUsername);
                 }
-                if ($projectCount !== null) {
+                if (null !== $projectCount) {
                     $message .= sprintf(' (%d projet%s accessible%s)', $projectCount, $projectCount > 1 ? 's' : '', $projectCount > 1 ? 's' : '');
                 }
 
@@ -175,7 +175,7 @@ class SonarQubeConnector implements IntegrationConnectorInterface
 
             // 4. Anonymous access
             $message = 'Instance SonarQube accessible';
-            if ($version !== null) {
+            if (null !== $version) {
                 $message .= sprintf(' (version %s)', $version);
             }
             $message .= ' (aucun identifiant configuré)';
@@ -206,7 +206,7 @@ class SonarQubeConnector implements IntegrationConnectorInterface
             return $connectionResult;
         }
 
-        if ($param === null) {
+        if (null === $param) {
             return $connectionResult;
         }
 
@@ -215,52 +215,33 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         }
 
         $projectKey = $param->getProjectKey();
-        if ($projectKey === null || $projectKey === '') {
+        if (null === $projectKey || '' === $projectKey) {
             return ConnectionTestResult::failure("La clé de projet SonarQube n'est pas renseignée dans les paramètres de la liaison.");
         }
 
         $baseUrl = $this->resolveBaseUrl($integration);
-        $server = $integration->getServer();
-        $token = $server?->getPassword();
-        $username = $server?->getUsername();
-        $authTypeName = $server?->getAuthenticationType()?->getName();
-        $options = $server?->getOptions() ?? [];
-
-        $timeout = isset($options['timeout']) && is_numeric($options['timeout']) ? (float) $options['timeout'] : 10.0;
-        $reqOptions = [
-            'timeout' => $timeout,
-            'max_redirects' => 3,
-            'headers' => [
-                'Accept' => 'application/json',
-            ],
-        ];
-
-        if ($authTypeName === 'Basic' && !empty($username) && !empty($token)) {
-            $reqOptions['auth_basic'] = [(string) $username, (string) $token];
-        } elseif (!empty($token)) {
-            $reqOptions['headers']['Authorization'] = 'Bearer ' . trim((string) $token);
-        }
+        $reqOptions = $this->buildRequestOptions($integration);
 
         try {
-            $url = $baseUrl . '/api/components/show?component=' . urlencode($projectKey);
+            $url = $baseUrl.'/api/components/show?component='.urlencode($projectKey);
             $response = $this->httpClient->request('GET', $url, $reqOptions);
             $statusCode = $response->getStatusCode();
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Le projet SonarQube '%s' est introuvable sur le serveur (HTTP 404).", $projectKey),
                     ['projectKey' => $projectKey, 'url' => $baseUrl]
                 );
             }
 
-            if ($statusCode === 401 || $statusCode === 403) {
+            if (401 === $statusCode || 403 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Accès non autorisé au projet SonarQube '%s' (HTTP %d).", $projectKey, $statusCode),
                     ['projectKey' => $projectKey]
                 );
             }
 
-            if ($statusCode !== 200) {
+            if (200 !== $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Le serveur SonarQube a répondu avec le statut HTTP %d pour le projet '%s'.", $statusCode, $projectKey)
                 );
@@ -276,7 +257,7 @@ class SonarQubeConnector implements IntegrationConnectorInterface
                     'projectKey' => $projectKey,
                     'name' => $name,
                     'qualifier' => $component['qualifier'] ?? 'TRK',
-                    'url' => $baseUrl . '/dashboard?id=' . urlencode($projectKey),
+                    'url' => $baseUrl.'/dashboard?id='.urlencode($projectKey),
                 ]
             );
         } catch (\Throwable $e) {
@@ -293,7 +274,7 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         }
 
         $projectKey = $param->getProjectKey();
-        if ($projectKey === null || $projectKey === '') {
+        if (null === $projectKey || '' === $projectKey) {
             throw new \InvalidArgumentException("La clé de projet SonarQube n'est pas renseignée dans les paramètres de la liaison.");
         }
 
@@ -303,8 +284,8 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         // 1. Informations du composant
         $componentName = $projectKey;
         try {
-            $compRes = $this->httpClient->request('GET', $baseUrl . '/api/components/show?component=' . urlencode($projectKey), $reqOptions);
-            if ($compRes->getStatusCode() === 200) {
+            $compRes = $this->httpClient->request('GET', $baseUrl.'/api/components/show?component='.urlencode($projectKey), $reqOptions);
+            if (200 === $compRes->getStatusCode()) {
                 $compData = $compRes->toArray(false);
                 $componentName = $compData['component']['name'] ?? $projectKey;
             }
@@ -317,8 +298,8 @@ class SonarQubeConnector implements IntegrationConnectorInterface
             'conditions' => [],
         ];
         try {
-            $qgRes = $this->httpClient->request('GET', $baseUrl . '/api/qualitygates/project_status?projectKey=' . urlencode($projectKey), $reqOptions);
-            if ($qgRes->getStatusCode() === 200) {
+            $qgRes = $this->httpClient->request('GET', $baseUrl.'/api/qualitygates/project_status?projectKey='.urlencode($projectKey), $reqOptions);
+            if (200 === $qgRes->getStatusCode()) {
                 $qgData = $qgRes->toArray(false);
                 $ps = $qgData['projectStatus'] ?? [];
                 $qualityGate['status'] = (string) ($ps['status'] ?? 'UNKNOWN');
@@ -339,8 +320,8 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         $metricKeys = 'bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,security_hotspots,reliability_rating,security_rating,sqale_rating,sqale_index,ncloc';
         $measuresMap = [];
         try {
-            $measuresRes = $this->httpClient->request('GET', $baseUrl . '/api/measures/component?component=' . urlencode($projectKey) . '&metricKeys=' . $metricKeys, $reqOptions);
-            if ($measuresRes->getStatusCode() === 200) {
+            $measuresRes = $this->httpClient->request('GET', $baseUrl.'/api/measures/component?component='.urlencode($projectKey).'&metricKeys='.$metricKeys, $reqOptions);
+            if (200 === $measuresRes->getStatusCode()) {
                 $mData = $measuresRes->toArray(false);
                 foreach ($mData['component']['measures'] ?? [] as $m) {
                     $measuresMap[$m['metric']] = $m['value'] ?? null;
@@ -350,9 +331,10 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         }
 
         $ratingToLetter = static function (?string $val): string {
-            if ($val === null) {
+            if (null === $val) {
                 return 'A';
             }
+
             return match ((int) round((float) $val)) {
                 1 => 'A',
                 2 => 'B',
@@ -397,8 +379,8 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         // 4. Anomalies et Code Smells ouverts
         $issues = [];
         try {
-            $issuesRes = $this->httpClient->request('GET', $baseUrl . '/api/issues/search?componentKeys=' . urlencode($projectKey) . '&ps=20&resolved=false', $reqOptions);
-            if ($issuesRes->getStatusCode() === 200) {
+            $issuesRes = $this->httpClient->request('GET', $baseUrl.'/api/issues/search?componentKeys='.urlencode($projectKey).'&ps=20&resolved=false', $reqOptions);
+            if (200 === $issuesRes->getStatusCode()) {
                 $issuesData = $issuesRes->toArray(false);
                 foreach ($issuesData['issues'] ?? [] as $iss) {
                     $componentRaw = (string) ($iss['component'] ?? '');
@@ -428,7 +410,7 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         return [
             'projectKey' => $projectKey,
             'name' => $componentName,
-            'url' => $baseUrl . '/dashboard?id=' . urlencode($projectKey),
+            'url' => $baseUrl.'/dashboard?id='.urlencode($projectKey),
             'qualityGate' => $qualityGate,
             'metrics' => $metrics,
             'issues' => $issues,
@@ -455,21 +437,16 @@ class SonarQubeConnector implements IntegrationConnectorInterface
             ],
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $reqOptions['proxy'] = '';
-            } else {
-                $reqOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $reqOptions['proxy'] = $proxyOptions['proxy'];
         }
 
-        if ($authTypeName === 'Basic' && !empty($username) && !empty($token)) {
+        if ('Basic' === $authTypeName && !empty($username) && !empty($token)) {
             $reqOptions['auth_basic'] = [(string) $username, (string) $token];
         } elseif (!empty($token)) {
             $cleanToken = trim((string) $token);
-            $reqOptions['headers']['Authorization'] = 'Bearer ' . $cleanToken;
+            $reqOptions['headers']['Authorization'] = 'Bearer '.$cleanToken;
         }
 
         return $reqOptions;
@@ -481,8 +458,8 @@ class SonarQubeConnector implements IntegrationConnectorInterface
     private function fetchProjectsCount(string $baseUrl, array $authOptions): ?int
     {
         try {
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/components/search_projects?ps=1', $authOptions);
-            if ($response->getStatusCode() === 200) {
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/components/search_projects?ps=1', $authOptions);
+            if (200 === $response->getStatusCode()) {
                 $data = $response->toArray(false);
                 if (isset($data['paging']['total']) && is_numeric($data['paging']['total'])) {
                     return (int) $data['paging']['total'];
@@ -498,12 +475,12 @@ class SonarQubeConnector implements IntegrationConnectorInterface
     private function resolveBaseUrl(Integration $integration): ?string
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return null;
         }
 
         $host = $server->getHost();
-        if ($host === null || $host === '') {
+        if (null === $host || '' === $host) {
             return null;
         }
 
@@ -514,12 +491,12 @@ class SonarQubeConnector implements IntegrationConnectorInterface
         $port = $server->getPort();
 
         $url = sprintf('%s://%s', $scheme, $host);
-        if ($port !== null && !(($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443))) {
-            $url .= ':' . $port;
+        if (null !== $port && !(('http' === $scheme && 80 === $port) || ('https' === $scheme && 443 === $port))) {
+            $url .= ':'.$port;
         }
 
         if (!empty($options['path'])) {
-            $url .= '/' . ltrim((string) $options['path'], '/');
+            $url .= '/'.ltrim((string) $options['path'], '/');
         }
 
         return rtrim($url, '/');

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
@@ -42,11 +44,18 @@ class Project
     #[ORM\OneToMany(targetEntity: Team::class, mappedBy: 'project', cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $teams;
 
+    /**
+     * @var Collection<int, Staging>
+     */
+    #[ORM\OneToMany(targetEntity: Staging::class, mappedBy: 'project', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $stagings;
+
     public function __construct()
     {
         $this->projectIntegrations = new ArrayCollection();
         $this->members = new ArrayCollection();
         $this->teams = new ArrayCollection();
+        $this->stagings = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -159,6 +168,35 @@ class Project
         if ($this->teams->removeElement($team)) {
             if ($team->getProject() === $this) {
                 $team->setProject(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Staging>
+     */
+    public function getStagings(): Collection
+    {
+        return $this->stagings;
+    }
+
+    public function addStaging(Staging $staging): static
+    {
+        if (!$this->stagings->contains($staging)) {
+            $this->stagings->add($staging);
+            $staging->setProject($this);
+        }
+
+        return $this;
+    }
+
+    public function removeStaging(Staging $staging): static
+    {
+        if ($this->stagings->removeElement($staging)) {
+            if ($staging->getProject() === $this) {
+                $staging->setProject(null);
             }
         }
 

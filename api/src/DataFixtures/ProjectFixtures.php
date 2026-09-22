@@ -50,6 +50,17 @@ class ProjectFixtures extends Fixture implements DependentFixtureInterface
             $manager->persist($scrapperSonar);
         }
 
+        $nexusIntegration = $manager->getRepository(Integration::class)->findOneBy(['type' => 'nexus']);
+        if ($nexusIntegration !== null) {
+            $scrapperNexus = new ProjectIntegration();
+            $scrapperNexus->setProject($scrapperProject);
+            $scrapperNexus->setIntegration($nexusIntegration);
+            $scrapperNexus->setParameters([
+                'repository' => 'maven-releases',
+            ]);
+            $manager->persist($scrapperNexus);
+        }
+
         $manager->flush();
     }
 

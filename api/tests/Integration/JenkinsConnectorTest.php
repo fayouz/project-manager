@@ -241,4 +241,118 @@ class JenkinsConnectorTest extends TestCase
         $this->assertSame(1, $liveData['stats']['failure']);
         $this->assertSame('1.1.2_RegazScrapper_Build_TI', $liveData['lastBuild']['jobName']);
     }
+
+    public function testProxyBypassedForInternalHost(): void
+    {
+        $capturedOptions = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions): MockResponse {
+            $capturedOptions = $options;
+            return new MockResponse(json_encode(['_class' => 'hudson.model.Hudson'], JSON_THROW_ON_ERROR), [
+                'http_code' => 200,
+                'response_headers' => ['x-jenkins' => '2.401.2'],
+            ]);
+        });
+
+        $server = new Server();
+        $server->setHost('jenkins.bm-energies.com');
+        $server->setOptions(['protocol' => 'http']);
+
+        $integration = new Integration();
+        $integration->setType('jenkins');
+        $integration->setServer($server);
+
+        $connector = new JenkinsConnector($httpClient);
+        $result = $connector->testConnection($integration);
+
+        $this->assertTrue($result->success);
+        $this->assertArrayHasKey('proxy', $capturedOptions);
+        $this->assertSame('', $capturedOptions['proxy']);
+    }
+
+    public function testProxyBypassedWhenDirectOption(): void
+    {
+        $capturedOptions = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions): MockResponse {
+            $capturedOptions = $options;
+            return new MockResponse(json_encode(['_class' => 'hudson.model.Hudson'], JSON_THROW_ON_ERROR), [
+                'http_code' => 200,
+                'response_headers' => ['x-jenkins' => '2.401.2'],
+            ]);
+        });
+
+        $server = new Server();
+        $server->setHost('jenkins.external-cloud.com');
+        $server->setOptions(['protocol' => 'https', 'proxy' => 'direct']);
+
+        $integration = new Integration();
+        $integration->setType('jenkins');
+        $integration->setServer($server);
+
+        $connector = new JenkinsConnector($httpClient);
+        $result = $connector->testConnection($integration);
+
+        $this->assertTrue($result->success);
+        $this->assertArrayHasKey('proxy', $capturedOptions);
+        $this->assertSame('', $capturedOptions['proxy']);
+    }
+
+    public function testProxyUsedWhenExplicitlyConfigured(): void
+    {
+        $capturedOptions = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions): MockResponse {
+            $capturedOptions = $options;
+            return new MockResponse(json_encode(['_class' => 'hudson.model.Hudson'], JSON_THROW_ON_ERROR), [
+                'http_code' => 200,
+                'response_headers' => ['x-jenkins' => '2.401.2'],
+            ]);
+        });
+
+        $server = new Server();
+        $server->setHost('jenkins.external-cloud.com');
+        $server->setOptions(['protocol' => 'https', 'proxy' => 'http://corporate-proxy:8080']);
+
+        $integration = new Integration();
+        $integration->setType('jenkins');
+        $integration->setServer($server);
+
+        $connector = new JenkinsConnector($httpClient);
+        $result = $connector->testConnection($integration);
+
+        $this->assertTrue($result->success);
+        $this->assertArrayHasKey('proxy', $capturedOptions);
+        $this->assertSame('http://corporate-proxy:8080', $capturedOptions['proxy']);
+    }
+
+    public function testProxyBypassedWhenExternalHostInNoProxy(): void
+    {
+        $capturedOptions = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions): MockResponse {
+            $capturedOptions = $options;
+            return new MockResponse(json_encode(['_class' => 'hudson.model.Hudson'], JSON_THROW_ON_ERROR), [
+                'http_code' => 200,
+                'response_headers' => ['x-jenkins' => '2.401.2'],
+            ]);
+        });
+
+        $_SERVER['NO_PROXY'] = 'mycompany.org,.internal.net';
+
+        $server = new Server();
+        $server->setHost('jenkins.mycompany.org');
+        $server->setOptions(['protocol' => 'https']);
+
+        $integration = new Integration();
+        $integration->setType('jenkins');
+        $integration->setServer($server);
+
+        try {
+            $connector = new JenkinsConnector($httpClient);
+            $result = $connector->testConnection($integration);
+
+            $this->assertTrue($result->success);
+            $this->assertArrayHasKey('proxy', $capturedOptions);
+            $this->assertSame('', $capturedOptions['proxy']);
+        } finally {
+            unset($_SERVER['NO_PROXY']);
+        }
+    }
 }

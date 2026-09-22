@@ -82,6 +82,11 @@ class Integration
     #[Assert\NotNull]
     private ?Server $server = null;
 
+    #[ORM\ManyToOne(targetEntity: Proxy::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    #[Groups(['integration:read', 'integration:write'])]
+    private ?Proxy $proxy = null;
+
     #[ORM\Column(length: 30)]
     #[Groups(['integration:read'])]
     private string $status = 'unknown';
@@ -171,6 +176,18 @@ class Integration
     public function setServer(?Server $server): static
     {
         $this->server = $server;
+
+        return $this;
+    }
+
+    public function getProxy(): ?Proxy
+    {
+        return $this->proxy;
+    }
+
+    public function setProxy(?Proxy $proxy): static
+    {
+        $this->proxy = $proxy;
 
         return $this;
     }

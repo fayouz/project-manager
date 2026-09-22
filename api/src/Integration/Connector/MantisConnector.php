@@ -8,19 +8,24 @@ use App\Entity\Integration;
 use App\Entity\IntegrationParamInterface;
 use App\Entity\MantisIntegrationParam;
 use App\Integration\Dto\ConnectionTestResult;
+use App\Service\ProxyResolver;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class MantisConnector implements IntegrationConnectorInterface, ProjectProviderConnectorInterface
 {
+    private readonly ProxyResolver $proxyResolver;
+
     public function __construct(
-        private readonly HttpClientInterface $httpClient
+        private readonly HttpClientInterface $httpClient,
+        ?ProxyResolver $proxyResolver = null,
     ) {
+        $this->proxyResolver = $proxyResolver ?? new ProxyResolver();
     }
 
     public function supports(string $type): bool
     {
-        return strtolower($type) === 'mantis';
+        return 'mantis' === strtolower($type);
     }
 
     public function getType(): string
@@ -36,12 +41,12 @@ class MantisConnector implements IntegrationConnectorInterface, ProjectProviderC
     public function testConnection(Integration $integration): ConnectionTestResult
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return ConnectionTestResult::failure("Aucun serveur n'est associé à cette intégration.");
         }
 
         $baseUrl = $this->resolveBaseUrl($integration);
-        if ($baseUrl === null || $baseUrl === '') {
+        if (null === $baseUrl || '' === $baseUrl) {
             return ConnectionTestResult::failure("L'hôte du serveur n'est pas renseigné pour Mantis.");
         }
 
@@ -59,19 +64,14 @@ class MantisConnector implements IntegrationConnectorInterface, ProjectProviderC
             ],
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $baseRequestOptions['proxy'] = '';
-            } else {
-                $baseRequestOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $baseRequestOptions['proxy'] = $proxyOptions['proxy'];
         }
 
         try {
             // Case 1: Pure API Token authentication (via REST API)
-            if ($authTypeName === 'Token' || (!empty($token) && empty($username))) {
+            if ('Token' === $authTypeName || (!empty($token) && empty($username))) {
                 return $this->testRestTokenConnection($baseUrl, (string) $token, $baseRequestOptions);
             }
 
@@ -102,7 +102,7 @@ class MantisConnector implements IntegrationConnectorInterface, ProjectProviderC
         }
 
         // Si aucun paramètre n'est spécifié, le statut de base suffit
-        if ($param === null) {
+        if (null === $param) {
             return $connectionResult;
         }
 
@@ -111,7 +111,7 @@ class MantisConnector implements IntegrationConnectorInterface, ProjectProviderC
         }
 
         $projectId = $param->getProjectId();
-        if ($projectId === null || $projectId === '') {
+        if (null === $projectId || '' === $projectId) {
             return ConnectionTestResult::failure("L'identifiant du projet Mantis n'est pas renseigné dans les paramètres de la liaison.");
         }
 
@@ -125,7 +125,7 @@ class MantisConnector implements IntegrationConnectorInterface, ProjectProviderC
                 }
             }
 
-            if ($foundProject === null) {
+            if (null === $foundProject) {
                 return ConnectionTestResult::failure(
                     sprintf("Le projet Mantis #%s est introuvable ou vous n'avez pas les droits d'accès sur ce projet.", $projectId),
                     [
@@ -154,7 +154,7 @@ class MantisConnector implements IntegrationConnectorInterface, ProjectProviderC
             ]);
         } catch (\Throwable $e) {
             return ConnectionTestResult::failure(
-                sprintf("Erreur lors de la vérification du projet Mantis #%s : %s", $projectId, $e->getMessage())
+                sprintf('Erreur lors de la vérification du projet Mantis #%s : %s', $projectId, $e->getMessage())
             );
         }
     }
@@ -204,35 +204,30 @@ XML;
             'body' => $soapBody,
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $reqOptions['proxy'] = '';
-            } else {
-                $reqOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $reqOptions['proxy'] = $proxyOptions['proxy'];
         }
 
         $issues = [];
         try {
-            $response = $this->httpClient->request('POST', $baseUrl . '/api/soap/mantisconnect.php', $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            $response = $this->httpClient->request('POST', $baseUrl.'/api/soap/mantisconnect.php', $reqOptions);
+            if (200 === $response->getStatusCode()) {
                 $xml = $response->getContent(false);
                 if (preg_match_all("#<item\s+xsi:type=\"ns1:IssueData\">(.*?)</item>#s", $xml, $matches)) {
                     foreach ($matches[1] as $itemXml) {
                         preg_match("#<id xsi:type=\"xsd:integer\">(\d+)</id>#", $itemXml, $idM);
-                        preg_match("#<summary xsi:type=\"xsd:string\">(.*?)</summary>#", $itemXml, $sumM);
-                        preg_match("#<description xsi:type=\"xsd:string\">(.*?)</description>#", $itemXml, $descM);
-                        preg_match("#<category xsi:type=\"xsd:string\">(.*?)</category>#", $itemXml, $catM);
-                        preg_match("#<severity[^>]*>.*?<name[^>]*>(.*?)</name>#s", $itemXml, $sevM);
-                        preg_match("#<priority[^>]*>.*?<name[^>]*>(.*?)</name>#s", $itemXml, $prioM);
+                        preg_match('#<summary xsi:type="xsd:string">(.*?)</summary>#', $itemXml, $sumM);
+                        preg_match('#<description xsi:type="xsd:string">(.*?)</description>#', $itemXml, $descM);
+                        preg_match('#<category xsi:type="xsd:string">(.*?)</category>#', $itemXml, $catM);
+                        preg_match('#<severity[^>]*>.*?<name[^>]*>(.*?)</name>#s', $itemXml, $sevM);
+                        preg_match('#<priority[^>]*>.*?<name[^>]*>(.*?)</name>#s', $itemXml, $prioM);
                         preg_match("#<status[^>]*>.*?<id[^>]*>(\d+)</id>.*?<name[^>]*>(.*?)</name>#s", $itemXml, $statM);
-                        preg_match("#<resolution[^>]*>.*?<name[^>]*>(.*?)</name>#s", $itemXml, $resM);
-                        preg_match("#<reporter[^>]*>.*?<name[^>]*>(.*?)</name>#s", $itemXml, $repM);
-                        preg_match("#<handler[^>]*>.*?<name[^>]*>(.*?)</name>#s", $itemXml, $handM);
-                        preg_match("#<date_submitted xsi:type=\"xsd:dateTime\">(.*?)</date_submitted>#", $itemXml, $dateSubM);
-                        preg_match("#<last_updated xsi:type=\"xsd:dateTime\">(.*?)</last_updated>#", $itemXml, $dateUpM);
+                        preg_match('#<resolution[^>]*>.*?<name[^>]*>(.*?)</name>#s', $itemXml, $resM);
+                        preg_match('#<reporter[^>]*>.*?<name[^>]*>(.*?)</name>#s', $itemXml, $repM);
+                        preg_match('#<handler[^>]*>.*?<name[^>]*>(.*?)</name>#s', $itemXml, $handM);
+                        preg_match('#<date_submitted xsi:type="xsd:dateTime">(.*?)</date_submitted>#', $itemXml, $dateSubM);
+                        preg_match('#<last_updated xsi:type="xsd:dateTime">(.*?)</last_updated>#', $itemXml, $dateUpM);
 
                         $statusCode = isset($statM[1]) ? (int) $statM[1] : 10;
                         $statusName = html_entity_decode($statM[2] ?? 'Nouveau', ENT_QUOTES | ENT_XML1, 'UTF-8');
@@ -269,11 +264,11 @@ XML;
             $code = $iss['statusCode'];
             $statusLower = mb_strtolower($iss['status']);
             if ($code >= 80 || str_contains($statusLower, 'résolu') || str_contains($statusLower, 'fermé')) {
-                $resolvedCount++;
+                ++$resolvedCount;
             } elseif ($code >= 50 || str_contains($statusLower, 'recette') || str_contains($statusLower, 'cours') || str_contains($statusLower, 'affecté')) {
-                $inProgressCount++;
+                ++$inProgressCount;
             } else {
-                $newCount++;
+                ++$newCount;
             }
 
             $sev = $iss['severity'];
@@ -295,8 +290,8 @@ XML;
 
         return [
             'projectId' => $projectId,
-            'projectName' => $param->getProjectName() ?: ('Projet #' . $projectId),
-            'url' => $baseUrl . '/set_project.php?project_id=' . $projectId,
+            'projectName' => $param->getProjectName() ?: ('Projet #'.$projectId),
+            'url' => $baseUrl.'/set_project.php?project_id='.$projectId,
             'stats' => $stats,
             'issues' => $issues,
             'roadmap' => [],
@@ -312,17 +307,17 @@ XML;
         $cleanToken = trim($token);
         $options['headers']['Authorization'] = $cleanToken;
 
-        $response = $this->httpClient->request('GET', $baseUrl . '/api/rest/users/me', $options);
+        $response = $this->httpClient->request('GET', $baseUrl.'/api/rest/users/me', $options);
         $statusCode = $response->getStatusCode();
 
         // If bare token was rejected, try with Bearer prefix
-        if ($statusCode === 401 && !str_starts_with($cleanToken, 'Bearer ')) {
-            $options['headers']['Authorization'] = 'Bearer ' . $cleanToken;
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/rest/users/me', $options);
+        if (401 === $statusCode && !str_starts_with($cleanToken, 'Bearer ')) {
+            $options['headers']['Authorization'] = 'Bearer '.$cleanToken;
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/rest/users/me', $options);
             $statusCode = $response->getStatusCode();
         }
 
-        if ($statusCode === 200) {
+        if (200 === $statusCode) {
             $headers = $response->getHeaders(false);
             $version = $headers['x-mantis-version'][0] ?? null;
             $data = $response->toArray(false);
@@ -330,10 +325,10 @@ XML;
             $authenticatedUsername = $user['name'] ?? $user['username'] ?? null;
 
             $message = 'Connexion réussie à Mantis';
-            if ($version !== null) {
+            if (null !== $version) {
                 $message .= sprintf(' (version %s)', $version);
             }
-            if ($authenticatedUsername !== null) {
+            if (null !== $authenticatedUsername) {
                 $message .= sprintf(' pour le compte %s', $authenticatedUsername);
             }
 
@@ -347,13 +342,13 @@ XML;
             );
         }
 
-        if ($statusCode === 401 || $statusCode === 403) {
+        if (401 === $statusCode || 403 === $statusCode) {
             return ConnectionTestResult::failure(
                 sprintf("Échec d'authentification Mantis (HTTP %d) : jeton d'accès invalide.", $statusCode)
             );
         }
 
-        if ($statusCode === 404) {
+        if (404 === $statusCode) {
             return ConnectionTestResult::failure(
                 sprintf("Instance Mantis introuvable à l'adresse %s (HTTP 404).", $baseUrl)
             );
@@ -388,22 +383,22 @@ XML;
         $soapOptions['headers']['Content-Type'] = 'text/xml; charset=utf-8';
         $soapOptions['body'] = $soapBody;
 
-        $response = $this->httpClient->request('POST', $baseUrl . '/api/soap/mantisconnect.php', $soapOptions);
+        $response = $this->httpClient->request('POST', $baseUrl.'/api/soap/mantisconnect.php', $soapOptions);
         $statusCode = $response->getStatusCode();
 
-        if ($statusCode === 404) {
+        if (404 === $statusCode) {
             // SOAP not found, try REST token as fallback in case password is an API token
             return $this->testRestTokenConnection($baseUrl, $password, $baseOptions);
         }
 
-        if ($statusCode === 200 || $statusCode === 500) {
+        if (200 === $statusCode || 500 === $statusCode) {
             $content = $response->getContent(false);
 
             // Check for SOAP Fault (e.g. invalid credentials)
             if (str_contains($content, '<SOAP-ENV:Fault>') || str_contains($content, '<faultcode>')) {
                 if (preg_match('#<faultstring>(.*?)</faultstring>#s', $content, $faultMatches)) {
                     $faultString = trim($faultMatches[1]);
-                    if (stripos($faultString, 'Invalid credentials') !== false || stripos($faultString, 'Access denied') !== false) {
+                    if (false !== stripos($faultString, 'Invalid credentials') || false !== stripos($faultString, 'Access denied')) {
                         return ConnectionTestResult::failure("Échec d'authentification Mantis : identifiants invalides.");
                     }
 
@@ -426,16 +421,16 @@ XML;
                 }
 
                 // If version not in header, try mc_version
-                if ($version === null) {
+                if (null === $version) {
                     $version = $this->fetchSoapVersion($baseUrl, $baseOptions);
                 }
 
                 $message = 'Connexion réussie à Mantis';
-                if ($version !== null) {
+                if (null !== $version) {
                     $message .= sprintf(' (version %s)', $version);
                 }
                 $message .= sprintf(' pour le compte %s', $username);
-                if ($projectCount !== null) {
+                if (null !== $projectCount) {
                     $message .= sprintf(' (%d projet%s accessible%s)', $projectCount, $projectCount > 1 ? 's' : '', $projectCount > 1 ? 's' : '');
                 }
 
@@ -465,11 +460,11 @@ XML;
         $version = $this->fetchSoapVersion($baseUrl, $baseOptions);
 
         // 2. If SOAP fails, test REST endpoint
-        if ($version === null) {
-            $restResponse = $this->httpClient->request('GET', $baseUrl . '/api/rest/users/me', $baseOptions);
+        if (null === $version) {
+            $restResponse = $this->httpClient->request('GET', $baseUrl.'/api/rest/users/me', $baseOptions);
             $statusCode = $restResponse->getStatusCode();
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Instance Mantis introuvable à l'adresse %s (HTTP 404).", $baseUrl)
                 );
@@ -480,7 +475,7 @@ XML;
         }
 
         $message = 'Instance Mantis accessible';
-        if ($version !== null) {
+        if (null !== $version) {
             $message .= sprintf(' (version %s)', $version);
         }
         $message .= ' (aucun identifiant configuré)';
@@ -512,8 +507,8 @@ XML;
             $soapOptions['headers']['Content-Type'] = 'text/xml; charset=utf-8';
             $soapOptions['body'] = $soapBody;
 
-            $response = $this->httpClient->request('POST', $baseUrl . '/api/soap/mantisconnect.php', $soapOptions);
-            if ($response->getStatusCode() === 200) {
+            $response = $this->httpClient->request('POST', $baseUrl.'/api/soap/mantisconnect.php', $soapOptions);
+            if (200 === $response->getStatusCode()) {
                 $headers = $response->getHeaders(false);
                 if (isset($headers['x-mantis-version'][0])) {
                     return $headers['x-mantis-version'][0];
@@ -534,12 +529,12 @@ XML;
     public function getProjects(Integration $integration): array
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             throw new \RuntimeException("Aucun serveur n'est associé à cette intégration Mantis.");
         }
 
         $baseUrl = $this->resolveBaseUrl($integration);
-        if ($baseUrl === null || $baseUrl === '') {
+        if (null === $baseUrl || '' === $baseUrl) {
             throw new \RuntimeException("L'hôte du serveur n'est pas renseigné pour Mantis.");
         }
 
@@ -557,18 +552,13 @@ XML;
             ],
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $baseRequestOptions['proxy'] = '';
-            } else {
-                $baseRequestOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $baseRequestOptions['proxy'] = $proxyOptions['proxy'];
         }
 
         // Case 1: Pure API Token authentication (via REST API)
-        if ($authTypeName === 'Token' || (!empty($token) && empty($username))) {
+        if ('Token' === $authTypeName || (!empty($token) && empty($username))) {
             return $this->fetchRestProjects($baseUrl, (string) $token, $baseRequestOptions);
         }
 
@@ -582,6 +572,7 @@ XML;
 
     /**
      * @param array<string, mixed> $baseOptions
+     *
      * @return array<int, array{id: string, name: string, raw_name: string}>
      */
     private function fetchSoapProjects(string $baseUrl, string $username, string $password, array $baseOptions): array
@@ -606,23 +597,24 @@ XML;
         $soapOptions['headers']['SOAPAction'] = '""';
         $soapOptions['body'] = $soapBody;
 
-        $response = $this->httpClient->request('POST', $baseUrl . '/api/soap/mantisconnect.php', $soapOptions);
+        $response = $this->httpClient->request('POST', $baseUrl.'/api/soap/mantisconnect.php', $soapOptions);
         $statusCode = $response->getStatusCode();
 
-        if ($statusCode === 404) {
+        if (404 === $statusCode) {
             // SOAP not found, try REST projects fallback
             return $this->fetchRestProjects($baseUrl, $password, $baseOptions);
         }
 
-        if ($statusCode !== 200) {
+        if (200 !== $statusCode) {
             $content = $response->getContent(false);
             if (str_contains($content, 'Invalid credentials') || str_contains($content, 'Access denied')) {
-                throw new \RuntimeException("Identifiants Mantis incorrects (accès refusé).");
+                throw new \RuntimeException('Identifiants Mantis incorrects (accès refusé).');
             }
-            throw new \RuntimeException(sprintf("Le serveur Mantis a répondu avec le statut HTTP %d.", $statusCode));
+            throw new \RuntimeException(sprintf('Le serveur Mantis a répondu avec le statut HTTP %d.', $statusCode));
         }
 
         $content = $response->getContent(false);
+
         return $this->parseSoapProjectsXml($content);
     }
 
@@ -648,7 +640,7 @@ XML;
         $nodes = $xpath->query('//return/item');
         $projects = [];
         foreach ($nodes as $node) {
-            if ($node instanceof \DOMElement && $node->parentNode?->nodeName === 'return') {
+            if ($node instanceof \DOMElement && 'return' === $node->parentNode?->nodeName) {
                 $projects = array_merge($projects, $this->extractProjectNode($node));
             }
         }
@@ -668,23 +660,23 @@ XML;
         $subprojectsNode = null;
 
         foreach ($element->childNodes as $child) {
-            if ($child->nodeType !== XML_ELEMENT_NODE) {
+            if (XML_ELEMENT_NODE !== $child->nodeType) {
                 continue;
             }
-            if ($child->nodeName === 'id') {
+            if ('id' === $child->nodeName) {
                 $id = trim($child->nodeValue ?? '');
-            } elseif ($child->nodeName === 'name') {
+            } elseif ('name' === $child->nodeName) {
                 $name = trim($child->nodeValue ?? '');
-            } elseif ($child->nodeName === 'subprojects') {
+            } elseif ('subprojects' === $child->nodeName) {
                 $subprojectsNode = $child;
             }
         }
 
-        if ($id === null || $name === null || $id === '') {
+        if (null === $id || null === $name || '' === $id) {
             return [];
         }
 
-        $fullName = $prefix !== '' ? $prefix . ' » ' . $name : $name;
+        $fullName = '' !== $prefix ? $prefix.' » '.$name : $name;
         $result = [
             [
                 'id' => $id,
@@ -695,7 +687,7 @@ XML;
 
         if ($subprojectsNode instanceof \DOMElement) {
             foreach ($subprojectsNode->childNodes as $child) {
-                if ($child instanceof \DOMElement && $child->nodeName === 'item') {
+                if ($child instanceof \DOMElement && 'item' === $child->nodeName) {
                     $result = array_merge($result, $this->extractProjectNode($child, $fullName));
                 }
             }
@@ -706,6 +698,7 @@ XML;
 
     /**
      * @param array<string, mixed> $baseOptions
+     *
      * @return array<int, array{id: string, name: string, raw_name: string}>
      */
     private function fetchRestProjects(string $baseUrl, string $token, array $baseOptions): array
@@ -714,17 +707,17 @@ XML;
         $cleanToken = trim($token);
         $options['headers']['Authorization'] = $cleanToken;
 
-        $response = $this->httpClient->request('GET', $baseUrl . '/api/rest/projects', $options);
+        $response = $this->httpClient->request('GET', $baseUrl.'/api/rest/projects', $options);
         $statusCode = $response->getStatusCode();
 
-        if ($statusCode === 401 && !str_starts_with($cleanToken, 'Bearer ')) {
-            $options['headers']['Authorization'] = 'Bearer ' . $cleanToken;
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/rest/projects', $options);
+        if (401 === $statusCode && !str_starts_with($cleanToken, 'Bearer ')) {
+            $options['headers']['Authorization'] = 'Bearer '.$cleanToken;
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/rest/projects', $options);
             $statusCode = $response->getStatusCode();
         }
 
-        if ($statusCode !== 200) {
-            throw new \RuntimeException(sprintf("Échec de la récupération des projets Mantis via REST (HTTP %d).", $statusCode));
+        if (200 !== $statusCode) {
+            throw new \RuntimeException(sprintf('Échec de la récupération des projets Mantis via REST (HTTP %d).', $statusCode));
         }
 
         $data = $response->toArray(false);
@@ -738,6 +731,7 @@ XML;
 
     /**
      * @param array<mixed> $projectsList
+     *
      * @return array<int, array{id: string, name: string, raw_name: string}>
      */
     private function extractRestProjects(array $projectsList, string $prefix = ''): array
@@ -749,11 +743,11 @@ XML;
             }
             $id = isset($p['id']) ? (string) $p['id'] : '';
             $name = isset($p['name']) ? (string) $p['name'] : '';
-            if ($id === '' || $name === '') {
+            if ('' === $id || '' === $name) {
                 continue;
             }
 
-            $fullName = $prefix !== '' ? $prefix . ' » ' . $name : $name;
+            $fullName = '' !== $prefix ? $prefix.' » '.$name : $name;
             $result[] = [
                 'id' => $id,
                 'name' => $fullName,
@@ -771,12 +765,12 @@ XML;
     private function resolveBaseUrl(Integration $integration): ?string
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return null;
         }
 
         $host = $server->getHost();
-        if ($host === null || $host === '') {
+        if (null === $host || '' === $host) {
             return null;
         }
 
@@ -788,12 +782,12 @@ XML;
         $port = $server->getPort();
 
         $url = sprintf('%s://%s', $scheme, $host);
-        if ($port !== null && !(($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443))) {
-            $url .= ':' . $port;
+        if (null !== $port && !(('http' === $scheme && 80 === $port) || ('https' === $scheme && 443 === $port))) {
+            $url .= ':'.$port;
         }
 
         if (!empty($options['path'])) {
-            $url .= '/' . ltrim((string) $options['path'], '/');
+            $url .= '/'.ltrim((string) $options['path'], '/');
         }
 
         return rtrim($url, '/');

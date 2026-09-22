@@ -8,6 +8,7 @@ use App\Entity\GiteaIntegrationParam;
 use App\Entity\IntegrationParamFactory;
 use App\Entity\JenkinsIntegrationParam;
 use App\Entity\MantisIntegrationParam;
+use App\Entity\NexusIntegrationParam;
 use App\Entity\SonarQubeIntegrationParam;
 use PHPUnit\Framework\TestCase;
 
@@ -124,5 +125,39 @@ class IntegrationParamTest extends TestCase
         $jenkins = IntegrationParamFactory::create('jenkins', ['job_name' => 'test-job']);
         $this->assertInstanceOf(JenkinsIntegrationParam::class, $jenkins);
         $this->assertSame('test-job', $jenkins->getTargetDisplay());
+
+        $nexus = IntegrationParamFactory::create('nexus', ['repository' => 'maven-releases', 'group' => 'com.bme']);
+        $this->assertInstanceOf(NexusIntegrationParam::class, $nexus);
+        $this->assertSame('maven-releases (com.bme)', $nexus->getTargetDisplay());
+    }
+
+    public function testNexusIntegrationParam(): void
+    {
+        $param = new NexusIntegrationParam();
+        $param->setRepository('maven-releases');
+        $param->setGroup('com.bmenergies');
+        $param->setFormat('maven2');
+
+        $this->assertSame('nexus', $param->getType());
+        $this->assertSame('maven-releases', $param->getRepository());
+        $this->assertSame('com.bmenergies', $param->getGroup());
+        $this->assertSame('maven2', $param->getFormat());
+        $this->assertSame('maven-releases (com.bmenergies)', $param->getTargetDisplay());
+        $this->assertTrue($param->isValid());
+
+        $array = $param->toArray();
+        $this->assertSame('maven-releases', $array['repository']);
+        $this->assertSame('com.bmenergies', $array['group']);
+        $this->assertSame('maven2', $array['format']);
+
+        $restored = NexusIntegrationParam::fromArray($array);
+        $this->assertSame('maven-releases', $restored->getRepository());
+        $this->assertSame('com.bmenergies', $restored->getGroup());
+        $this->assertSame('maven2', $restored->getFormat());
+
+        $empty = new NexusIntegrationParam();
+        $this->assertFalse($empty->isValid());
+        $this->assertSame('Non configuré', $empty->getTargetDisplay());
+        $this->assertArrayHasKey('repository', $empty->validate());
     }
 }

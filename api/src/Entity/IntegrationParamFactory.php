@@ -16,6 +16,7 @@ final class IntegrationParamFactory
             'gitea' => GiteaIntegrationParam::fromArray($parameters),
             'sonarqube' => SonarQubeIntegrationParam::fromArray($parameters),
             'jenkins' => JenkinsIntegrationParam::fromArray($parameters),
+            'nexus' => NexusIntegrationParam::fromArray($parameters),
             default => new GenericIntegrationParam($type, $parameters),
         };
     }

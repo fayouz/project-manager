@@ -17,7 +17,7 @@ class IntegrationFixtures extends Fixture implements DependentFixtureInterface
     public function load(ObjectManager $manager): void
     {
         $httpType = $manager->getRepository(ServerType::class)->findOneBy(['name' => 'HTTP']);
-        if ($httpType === null) {
+        if (null === $httpType) {
             $httpType = new ServerType();
             $httpType->setName('HTTP');
             $manager->persist($httpType);
@@ -26,6 +26,13 @@ class IntegrationFixtures extends Fixture implements DependentFixtureInterface
 
         $basicAuth = $manager->getRepository(ServerAuthenticationType::class)->findOneBy(['name' => 'Basic']);
         $tokenAuth = $manager->getRepository(ServerAuthenticationType::class)->findOneBy(['name' => 'Token']);
+        $noneAuth = $manager->getRepository(ServerAuthenticationType::class)->findOneBy(['name' => 'Aucune']);
+        if (null === $noneAuth) {
+            $noneAuth = new ServerAuthenticationType();
+            $noneAuth->setName('Aucune');
+            $manager->persist($noneAuth);
+            $manager->flush();
+        }
 
         // 1. Jenkins Server & Integration
         $jenkinsServer = new Server();
@@ -36,7 +43,10 @@ class IntegrationFixtures extends Fixture implements DependentFixtureInterface
         $jenkinsServer->setPassword('IoNa/Dev//1980!');
         $jenkinsServer->setType($httpType);
         $jenkinsServer->setAuthenticationType($basicAuth);
-        $jenkinsServer->setOptions(['protocol' => 'http']);
+        $jenkinsServer->setOptions([
+            'protocol' => 'http',
+            'proxy' => 'direct',
+        ]);
         $manager->persist($jenkinsServer);
 
         $jenkins = new Integration();
@@ -58,7 +68,7 @@ class IntegrationFixtures extends Fixture implements DependentFixtureInterface
         $giteaServer->setAuthenticationType($basicAuth);
         $giteaServer->setOptions([
             'protocol' => 'http',
-            'proxy' => 'http://px.groupegdb.local:8080',
+            'proxy' => 'direct',
         ]);
         $manager->persist($giteaServer);
 
@@ -81,6 +91,7 @@ class IntegrationFixtures extends Fixture implements DependentFixtureInterface
         $mantisServer->setAuthenticationType($basicAuth);
         $mantisServer->setOptions([
             'protocol' => 'https',
+            'proxy' => 'direct',
         ]);
         $manager->persist($mantisServer);
 
@@ -103,6 +114,7 @@ class IntegrationFixtures extends Fixture implements DependentFixtureInterface
         $sonarServer->setAuthenticationType($basicAuth);
         $sonarServer->setOptions([
             'protocol' => 'http',
+            'proxy' => 'direct',
         ]);
         $manager->persist($sonarServer);
 
@@ -113,6 +125,29 @@ class IntegrationFixtures extends Fixture implements DependentFixtureInterface
         $sonar->setStatus('unknown');
         $sonar->setServer($sonarServer);
         $manager->persist($sonar);
+
+        // 5. Nexus Server & Integration
+        $nexusServer = new Server();
+        $nexusServer->setName('Nexus Repository Manager');
+        $nexusServer->setHost('nexus.bm-energies.com');
+        $nexusServer->setPort(8081);
+        $nexusServer->setUsername('anonymous');
+        $nexusServer->setPassword('');
+        $nexusServer->setType($httpType);
+        $nexusServer->setAuthenticationType($noneAuth);
+        $nexusServer->setOptions([
+            'protocol' => 'http',
+            'proxy' => 'direct',
+        ]);
+        $manager->persist($nexusServer);
+
+        $nexus = new Integration();
+        $nexus->setName('Nexus Repository');
+        $nexus->setType('nexus');
+        $nexus->setEnabled(true);
+        $nexus->setStatus('unknown');
+        $nexus->setServer($nexusServer);
+        $manager->persist($nexus);
 
         $manager->flush();
     }

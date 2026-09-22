@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration;
 
 use App\Entity\Integration;
+use App\Entity\Proxy;
 use App\Entity\Server;
 use App\Entity\ServerAuthenticationType;
 use App\Integration\Connector\SonarQubeConnector;
@@ -257,5 +258,40 @@ class SonarQubeConnectorTest extends TestCase
         $this->assertFalse($result->success);
         $this->assertSame('error', $result->status);
         $this->assertStringContainsString("Aucun serveur n'est associé", $result->message);
+    }
+
+    public function testProxyUsedFromIntegrationOverride(): void
+    {
+        $capturedOptions = [];
+        $httpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions): MockResponse {
+            $capturedOptions = $options;
+
+            return new MockResponse(json_encode(['status' => 'UP', 'version' => '10.5.0'], JSON_THROW_ON_ERROR), [
+                'http_code' => 200,
+            ]);
+        });
+
+        $serverProxy = new Proxy();
+        $serverProxy->setUrl('http://server-proxy:8080');
+        $serverProxy->setEnabled(true);
+
+        $integrationProxy = new Proxy();
+        $integrationProxy->setUrl('http://integration-proxy:8080');
+        $integrationProxy->setEnabled(true);
+
+        $server = new Server();
+        $server->setHost('external-sonarqube.com');
+        $server->setProxy($serverProxy);
+
+        $integration = new Integration();
+        $integration->setType('sonarqube');
+        $integration->setServer($server);
+        $integration->setProxy($integrationProxy);
+
+        $connector = new SonarQubeConnector($httpClient);
+        $connector->testConnection($integration);
+
+        $this->assertArrayHasKey('proxy', $capturedOptions);
+        $this->assertSame('http://integration-proxy:8080', $capturedOptions['proxy']);
     }
 }

@@ -8,19 +8,24 @@ use App\Entity\Integration;
 use App\Entity\IntegrationParamInterface;
 use App\Entity\JenkinsIntegrationParam;
 use App\Integration\Dto\ConnectionTestResult;
+use App\Service\ProxyResolver;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class JenkinsConnector implements IntegrationConnectorInterface, ProjectProviderConnectorInterface
 {
+    private readonly ProxyResolver $proxyResolver;
+
     public function __construct(
-        private readonly HttpClientInterface $httpClient
+        private readonly HttpClientInterface $httpClient,
+        ?ProxyResolver $proxyResolver = null,
     ) {
+        $this->proxyResolver = $proxyResolver ?? new ProxyResolver();
     }
 
     public function supports(string $type): bool
     {
-        return strtolower($type) === 'jenkins';
+        return 'jenkins' === strtolower($type);
     }
 
     public function getType(): string
@@ -36,61 +41,29 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
     public function testConnection(Integration $integration): ConnectionTestResult
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return ConnectionTestResult::failure("Aucun serveur n'est associé à cette intégration.");
         }
 
         $baseUrl = $this->resolveBaseUrl($integration);
-        if ($baseUrl === null || $baseUrl === '') {
+        if (null === $baseUrl || '' === $baseUrl) {
             return ConnectionTestResult::failure("L'hôte du serveur n'est pas renseigné pour Jenkins.");
         }
 
-        $username = $server->getUsername();
-        $token = $server->getPassword();
-        $authTypeName = $server->getAuthenticationType()?->getName();
-        $options = $server->getOptions();
-
-        $timeout = isset($options['timeout']) && is_numeric($options['timeout']) ? (float) $options['timeout'] : 10.0;
-        $requestOptions = [
-            'timeout' => $timeout,
-            'max_redirects' => 3,
-            'headers' => [
-                'Accept' => 'application/json',
-            ],
-        ];
-
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $requestOptions['proxy'] = '';
-            } else {
-                $requestOptions['proxy'] = $proxyVal;
-            }
-        }
-
-        if (!empty($username) && !empty($token)) {
-            $requestOptions['auth_basic'] = [(string) $username, (string) $token];
-        } elseif (!empty($token)) {
-            if ($authTypeName === 'Token') {
-                $requestOptions['headers']['Authorization'] = 'Bearer ' . trim((string) $token);
-            } else {
-                $requestOptions['auth_basic'] = [(string) $username, (string) $token];
-            }
-        }
+        $requestOptions = $this->buildRequestOptions($integration);
 
         try {
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/json', $requestOptions);
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/json', $requestOptions);
             $statusCode = $response->getStatusCode();
 
-            if ($statusCode === 200) {
+            if (200 === $statusCode) {
                 $headers = $response->getHeaders(false);
                 $version = $headers['x-jenkins'][0] ?? null;
                 $data = $response->toArray(false);
                 $description = $data['nodeDescription'] ?? null;
 
                 $message = 'Connexion réussie à Jenkins';
-                if ($version !== null) {
+                if (null !== $version) {
                     $message .= sprintf(' (version %s)', $version);
                 }
 
@@ -104,13 +77,13 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
                 );
             }
 
-            if ($statusCode === 401 || $statusCode === 403) {
+            if (401 === $statusCode || 403 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Échec d'authentification Jenkins (HTTP %d) : identifiants ou jeton d'accès invalides.", $statusCode)
                 );
             }
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Instance Jenkins introuvable à l'adresse %s (HTTP 404).", $baseUrl)
                 );
@@ -136,17 +109,17 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
     public function getProjects(Integration $integration): array
     {
         $baseUrl = $this->resolveBaseUrl($integration);
-        if ($baseUrl === null || $baseUrl === '') {
+        if (null === $baseUrl || '' === $baseUrl) {
             throw new \InvalidArgumentException("L'hôte du serveur Jenkins n'est pas renseigné.");
         }
 
         $requestOptions = $this->buildRequestOptions($integration);
-        $url = $baseUrl . '/api/json?tree=jobs[name,url,_class,jobs[name,url,_class,jobs[name,url,_class,jobs[name,url,_class]]]]';
+        $url = $baseUrl.'/api/json?tree=jobs[name,url,_class,jobs[name,url,_class,jobs[name,url,_class,jobs[name,url,_class]]]]';
 
         try {
             $response = $this->httpClient->request('GET', $url, $requestOptions);
-            if ($response->getStatusCode() !== 200) {
-                throw new \RuntimeException(sprintf("Jenkins a répondu avec le statut HTTP %d.", $response->getStatusCode()));
+            if (200 !== $response->getStatusCode()) {
+                throw new \RuntimeException(sprintf('Jenkins a répondu avec le statut HTTP %d.', $response->getStatusCode()));
             }
 
             $data = $response->toArray(false);
@@ -154,11 +127,11 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
             $this->extractFoldersRecursively($data['jobs'] ?? [], '', '', $folders);
 
             // Tri alphabétique sur le nom d'affichage
-            usort($folders, static fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+            usort($folders, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
 
             return $folders;
         } catch (\Throwable $e) {
-            throw new \RuntimeException(sprintf("Erreur lors de la récupération des dossiers Jenkins : %s", $e->getMessage()), 0, $e);
+            throw new \RuntimeException(sprintf('Erreur lors de la récupération des dossiers Jenkins : %s', $e->getMessage()), 0, $e);
         }
     }
 
@@ -168,31 +141,31 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
     public function fetchJobs(Integration $integration, string $folder): array
     {
         $baseUrl = $this->resolveBaseUrl($integration);
-        if ($baseUrl === null || $baseUrl === '') {
+        if (null === $baseUrl || '' === $baseUrl) {
             throw new \InvalidArgumentException("L'hôte du serveur Jenkins n'est pas renseigné.");
         }
 
         $normalizedFolder = JenkinsIntegrationParam::normalizeFolder($folder);
-        if ($normalizedFolder === '') {
-            throw new \InvalidArgumentException("Le chemin du dossier Jenkins est invalide ou vide.");
+        if ('' === $normalizedFolder) {
+            throw new \InvalidArgumentException('Le chemin du dossier Jenkins est invalide ou vide.');
         }
 
         $requestOptions = $this->buildRequestOptions($integration);
-        $url = $baseUrl . '/' . $normalizedFolder . 'api/json?tree=name,url,description,jobs[name,url,color,_class,description,lastBuild[number,url,result,timestamp,duration,building],lastSuccessfulBuild[number,url,timestamp],lastFailedBuild[number,url,timestamp]]';
+        $url = $baseUrl.'/'.$normalizedFolder.'api/json?tree=name,url,description,jobs[name,url,color,_class,description,lastBuild[number,url,result,timestamp,duration,building],lastSuccessfulBuild[number,url,timestamp],lastFailedBuild[number,url,timestamp]]';
 
         try {
             $response = $this->httpClient->request('GET', $url, $requestOptions);
             $statusCode = $response->getStatusCode();
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 throw new \RuntimeException(sprintf("Le dossier Jenkins '%s' est introuvable (HTTP 404).", $normalizedFolder));
             }
 
-            if ($statusCode === 401 || $statusCode === 403) {
+            if (401 === $statusCode || 403 === $statusCode) {
                 throw new \RuntimeException(sprintf("Accès non autorisé au dossier Jenkins '%s' (HTTP %d).", $normalizedFolder, $statusCode));
             }
 
-            if ($statusCode !== 200) {
+            if (200 !== $statusCode) {
                 throw new \RuntimeException(sprintf("Jenkins a répondu avec le code HTTP %d pour le dossier '%s'.", $statusCode, $normalizedFolder));
             }
 
@@ -202,13 +175,13 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
 
             foreach ($rawJobs as $rawJob) {
                 $jobName = (string) ($rawJob['name'] ?? '');
-                if ($jobName === '') {
+                if ('' === $jobName) {
                     continue;
                 }
 
                 $color = (string) ($rawJob['color'] ?? 'unknown');
                 $class = (string) ($rawJob['_class'] ?? '');
-                $jobUrl = (string) ($rawJob['url'] ?? ($baseUrl . '/' . $normalizedFolder . 'job/' . rawurlencode($jobName) . '/'));
+                $jobUrl = (string) ($rawJob['url'] ?? ($baseUrl.'/'.$normalizedFolder.'job/'.rawurlencode($jobName).'/'));
                 $description = (string) ($rawJob['description'] ?? '');
 
                 // Statut déduit de la couleur Jenkins
@@ -280,7 +253,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
             return $connectionResult;
         }
 
-        if ($param === null) {
+        if (null === $param) {
             return $connectionResult;
         }
 
@@ -292,7 +265,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
         $jobName = $param->getJobName();
 
         // Mode prioritaire : Dossier de jobs
-        if ($folder !== null && $folder !== '') {
+        if (null !== $folder && '' !== $folder) {
             try {
                 $jobs = $this->fetchJobs($integration, $folder);
                 $count = count($jobs);
@@ -302,7 +275,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
                     [
                         'folder' => $folder,
                         'jobsCount' => $count,
-                        'jobs' => array_map(static fn(array $j): array => [
+                        'jobs' => array_map(static fn (array $j): array => [
                             'name' => $j['name'],
                             'status' => $j['status'],
                             'url' => $j['url'],
@@ -318,7 +291,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
         }
 
         // Mode repli : Job unitaire
-        if ($jobName === null || $jobName === '') {
+        if (null === $jobName || '' === $jobName) {
             return ConnectionTestResult::failure("Le dossier ou le nom du job Jenkins n'est pas renseigné dans les paramètres de la liaison.");
         }
 
@@ -326,25 +299,25 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
         $requestOptions = $this->buildRequestOptions($integration);
 
         try {
-            $url = $baseUrl . '/job/' . urlencode($jobName) . '/api/json';
+            $url = $baseUrl.'/job/'.urlencode($jobName).'/api/json';
             $response = $this->httpClient->request('GET', $url, $requestOptions);
             $statusCode = $response->getStatusCode();
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Le job Jenkins '%s' est introuvable sur le serveur (HTTP 404).", $jobName),
                     ['jobName' => $jobName, 'url' => $baseUrl]
                 );
             }
 
-            if ($statusCode === 401 || $statusCode === 403) {
+            if (401 === $statusCode || 403 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Accès non autorisé au job Jenkins '%s' (HTTP %d).", $jobName, $statusCode),
                     ['jobName' => $jobName]
                 );
             }
 
-            if ($statusCode !== 200) {
+            if (200 !== $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Le serveur Jenkins a répondu avec le statut HTTP %d pour le job '%s'.", $statusCode, $jobName)
                 );
@@ -360,7 +333,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
                     'jobName' => $jobName,
                     'displayName' => $displayName,
                     'color' => $color,
-                    'url' => $data['url'] ?? ($baseUrl . '/job/' . urlencode($jobName)),
+                    'url' => $data['url'] ?? ($baseUrl.'/job/'.urlencode($jobName)),
                 ]
             );
         } catch (\Throwable $e) {
@@ -379,9 +352,9 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
         $folder = $param->getFolder();
         $baseUrl = $this->resolveBaseUrl($integration);
 
-        if ($folder !== null && $folder !== '') {
+        if (null !== $folder && '' !== $folder) {
             $jobs = $this->fetchJobs($integration, $folder);
-            $folderUrl = $baseUrl . '/' . $folder;
+            $folderUrl = $baseUrl.'/'.$folder;
 
             $total = count($jobs);
             $success = 0;
@@ -394,7 +367,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
 
             foreach ($jobs as $j) {
                 if ($j['isBuilding']) {
-                    $building++;
+                    ++$building;
                 }
                 match ($j['status']) {
                     'SUCCESS' => $success++,
@@ -434,9 +407,9 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
 
         // Si aucun dossier configuré mais job unitaire
         $jobName = $param->getJobName();
-        if ($jobName !== null && $jobName !== '') {
+        if (null !== $jobName && '' !== $jobName) {
             $requestOptions = $this->buildRequestOptions($integration);
-            $url = $baseUrl . '/job/' . urlencode($jobName) . '/api/json';
+            $url = $baseUrl.'/job/'.urlencode($jobName).'/api/json';
             $res = $this->httpClient->request('GET', $url, $requestOptions);
             $data = $res->toArray(false);
 
@@ -444,7 +417,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
                 'type' => 'jenkins',
                 'connected' => true,
                 'jobName' => $jobName,
-                'url' => $data['url'] ?? ($baseUrl . '/job/' . urlencode($jobName)),
+                'url' => $data['url'] ?? ($baseUrl.'/job/'.urlencode($jobName)),
                 'color' => $data['color'] ?? 'unknown',
                 'jobs' => [],
                 'stats' => [
@@ -468,14 +441,14 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
     }
 
     /**
-     * @param array<int, array<string, mixed>> $rawJobs
+     * @param array<int, array<string, mixed>>                              $rawJobs
      * @param array<int, array{id: string, name: string, raw_name: string}> $folders
      */
     private function extractFoldersRecursively(array $rawJobs, string $parentPath, string $parentDisplayName, array &$folders): void
     {
         foreach ($rawJobs as $job) {
             $name = (string) ($job['name'] ?? '');
-            if ($name === '') {
+            if ('' === $name) {
                 continue;
             }
 
@@ -483,8 +456,8 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
             $isFolder = str_contains($class, 'Folder') || !empty($job['jobs']);
 
             if ($isFolder) {
-                $currentPath = $parentPath . 'job/' . $name . '/';
-                $currentDisplayName = $parentDisplayName !== '' ? $parentDisplayName . ' » ' . $name : $name;
+                $currentPath = $parentPath.'job/'.$name.'/';
+                $currentDisplayName = '' !== $parentDisplayName ? $parentDisplayName.' » '.$name : $name;
 
                 $folders[] = [
                     'id' => $currentPath,
@@ -501,6 +474,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
 
     /**
      * @param array<string, mixed>|null $lastBuild
+     *
      * @return array{status: string, label: string, badgeColor: "success"|"error"|"warning"|"primary"|"neutral", isBuilding: bool}
      */
     private function parseJobStatus(string $color, ?array $lastBuild = null): array
@@ -573,6 +547,7 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
         $token = $server?->getPassword();
         $authTypeName = $server?->getAuthenticationType()?->getName();
         $options = $server?->getOptions() ?? [];
+        $host = (string) ($server?->getHost() ?? '');
 
         $timeout = isset($options['timeout']) && is_numeric($options['timeout']) ? (float) $options['timeout'] : 10.0;
         $requestOptions = [
@@ -583,21 +558,16 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
             ],
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $requestOptions['proxy'] = '';
-            } else {
-                $requestOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $requestOptions['proxy'] = $proxyOptions['proxy'];
         }
 
         if (!empty($username) && !empty($token)) {
             $requestOptions['auth_basic'] = [(string) $username, (string) $token];
         } elseif (!empty($token)) {
-            if ($authTypeName === 'Token') {
-                $requestOptions['headers']['Authorization'] = 'Bearer ' . trim((string) $token);
+            if ('Token' === $authTypeName) {
+                $requestOptions['headers']['Authorization'] = 'Bearer '.trim((string) $token);
             } else {
                 $requestOptions['auth_basic'] = [(string) $username, (string) $token];
             }
@@ -609,12 +579,12 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
     private function resolveBaseUrl(Integration $integration): ?string
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return null;
         }
 
         $host = $server->getHost();
-        if ($host === null || $host === '') {
+        if (null === $host || '' === $host) {
             return null;
         }
 
@@ -623,12 +593,12 @@ class JenkinsConnector implements IntegrationConnectorInterface, ProjectProvider
         $port = $server->getPort();
 
         $url = sprintf('%s://%s', $scheme, $host);
-        if ($port !== null && !(($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443))) {
-            $url .= ':' . $port;
+        if (null !== $port && !(('http' === $scheme && 80 === $port) || ('https' === $scheme && 443 === $port))) {
+            $url .= ':'.$port;
         }
 
         if (!empty($options['path'])) {
-            $url .= '/' . ltrim((string) $options['path'], '/');
+            $url .= '/'.ltrim((string) $options['path'], '/');
         }
 
         return rtrim($url, '/');

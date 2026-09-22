@@ -6,7 +6,6 @@ namespace App\Controller;
 
 use App\Entity\Integration;
 use App\Entity\IntegrationParamFactory;
-use App\Entity\Server;
 use App\Integration\Dto\ConnectionTestResult;
 use App\Integration\IntegrationRegistry;
 use App\Repository\IntegrationRepository;
@@ -25,7 +24,7 @@ class IntegrationTestController extends AbstractController
         private readonly IntegrationRegistry $registry,
         private readonly EntityManagerInterface $entityManager,
         private readonly IntegrationRepository $integrationRepository,
-        private readonly ServerRepository $serverRepository
+        private readonly ServerRepository $serverRepository,
     ) {
     }
 
@@ -34,17 +33,17 @@ class IntegrationTestController extends AbstractController
         $id = $request->attributes->get('id');
 
         // Case 1: Existing integration in database
-        if ($id !== null || ($data instanceof Integration && $data->getId() !== null)) {
-            $integration = $data instanceof Integration && $data->getId() !== null
+        if (null !== $id || ($data instanceof Integration && null !== $data->getId())) {
+            $integration = $data instanceof Integration && null !== $data->getId()
                 ? $data
                 : $this->integrationRepository->find((int) $id);
 
-            if ($integration === null) {
+            if (null === $integration) {
                 return new JsonResponse(['message' => 'Intégration introuvable.'], Response::HTTP_NOT_FOUND);
             }
 
             $connector = $this->registry->getConnector((string) $integration->getType());
-            if ($connector === null) {
+            if (null === $connector) {
                 $result = ConnectionTestResult::failure(
                     sprintf("Type d'intégration '%s' non supporté.", $integration->getType())
                 );
@@ -54,7 +53,7 @@ class IntegrationTestController extends AbstractController
                     ? $payload['parameters']
                     : null;
 
-                if ($parameters !== null) {
+                if (null !== $parameters) {
                     $param = IntegrationParamFactory::create((string) $integration->getType(), $parameters);
                     $result = $connector->checkHealth($integration, $param);
                 } else {
@@ -83,7 +82,7 @@ class IntegrationTestController extends AbstractController
         }
 
         $connector = $this->registry->getConnector($type);
-        if ($connector === null) {
+        if (null === $connector) {
             return new JsonResponse(
                 ConnectionTestResult::failure(sprintf("Type d'intégration '%s' non supporté.", $type))->toArray(),
                 Response::HTTP_BAD_REQUEST
@@ -105,16 +104,32 @@ class IntegrationTestController extends AbstractController
             $serverId = (int) $matches[1];
         }
 
-        if ($serverId === null) {
-            return new JsonResponse(['message' => "Identifiant de serveur invalide."], Response::HTTP_BAD_REQUEST);
+        if (null === $serverId) {
+            return new JsonResponse(['message' => 'Identifiant de serveur invalide.'], Response::HTTP_BAD_REQUEST);
         }
 
         $server = $this->serverRepository->find($serverId);
-        if ($server === null) {
-            return new JsonResponse(['message' => "Serveur introuvable."], Response::HTTP_BAD_REQUEST);
+        if (null === $server) {
+            return new JsonResponse(['message' => 'Serveur introuvable.'], Response::HTTP_BAD_REQUEST);
         }
 
         $transient->setServer($server);
+
+        if (!empty($payload['proxy'])) {
+            $proxyVal = $payload['proxy'];
+            $proxyId = null;
+            if (is_numeric($proxyVal)) {
+                $proxyId = (int) $proxyVal;
+            } elseif (is_string($proxyVal) && preg_match('#/api/proxies/(\d+)#', $proxyVal, $matches)) {
+                $proxyId = (int) $matches[1];
+            }
+            if (null !== $proxyId) {
+                $proxy = $this->entityManager->getRepository(\App\Entity\Proxy::class)->find($proxyId);
+                if (null !== $proxy) {
+                    $transient->setProxy($proxy);
+                }
+            }
+        }
 
         $result = $connector->testConnection($transient);
 

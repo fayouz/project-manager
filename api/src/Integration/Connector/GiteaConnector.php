@@ -8,19 +8,24 @@ use App\Entity\GiteaIntegrationParam;
 use App\Entity\Integration;
 use App\Entity\IntegrationParamInterface;
 use App\Integration\Dto\ConnectionTestResult;
+use App\Service\ProxyResolver;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class GiteaConnector implements IntegrationConnectorInterface
 {
+    private readonly ProxyResolver $proxyResolver;
+
     public function __construct(
-        private readonly HttpClientInterface $httpClient
+        private readonly HttpClientInterface $httpClient,
+        ?ProxyResolver $proxyResolver = null,
     ) {
+        $this->proxyResolver = $proxyResolver ?? new ProxyResolver();
     }
 
     public function supports(string $type): bool
     {
-        return strtolower($type) === 'gitea';
+        return 'gitea' === strtolower($type);
     }
 
     public function getType(): string
@@ -36,12 +41,12 @@ class GiteaConnector implements IntegrationConnectorInterface
     public function testConnection(Integration $integration): ConnectionTestResult
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return ConnectionTestResult::failure("Aucun serveur n'est associé à cette intégration.");
         }
 
         $baseUrl = $this->resolveBaseUrl($integration);
-        if ($baseUrl === null || $baseUrl === '') {
+        if (null === $baseUrl || '' === $baseUrl) {
             return ConnectionTestResult::failure("L'hôte du serveur n'est pas renseigné pour Gitea.");
         }
 
@@ -59,28 +64,23 @@ class GiteaConnector implements IntegrationConnectorInterface
             ],
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $timeoutOptions['proxy'] = '';
-            } else {
-                $timeoutOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $timeoutOptions['proxy'] = $proxyOptions['proxy'];
         }
 
         try {
             // 1. Check Gitea version endpoint
-            $versionResponse = $this->httpClient->request('GET', $baseUrl . '/api/v1/version', $timeoutOptions);
+            $versionResponse = $this->httpClient->request('GET', $baseUrl.'/api/v1/version', $timeoutOptions);
             $statusCode = $versionResponse->getStatusCode();
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Instance Gitea introuvable à l'adresse %s (HTTP 404).", $baseUrl)
                 );
             }
 
-            if ($statusCode !== 200) {
+            if (200 !== $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf('Le serveur Gitea a répondu avec le statut HTTP %d.', $statusCode)
                 );
@@ -93,30 +93,30 @@ class GiteaConnector implements IntegrationConnectorInterface
             if (!empty($token) || !empty($username)) {
                 $userOptions = $timeoutOptions;
 
-                if ($authTypeName === 'Basic' && !empty($username) && !empty($token)) {
+                if ('Basic' === $authTypeName && !empty($username) && !empty($token)) {
                     $userOptions['auth_basic'] = [(string) $username, (string) $token];
                 } elseif (!empty($token)) {
-                    $userOptions['headers']['Authorization'] = 'token ' . trim((string) $token);
+                    $userOptions['headers']['Authorization'] = 'token '.trim((string) $token);
                 }
 
-                $userResponse = $this->httpClient->request('GET', $baseUrl . '/api/v1/user', $userOptions);
+                $userResponse = $this->httpClient->request('GET', $baseUrl.'/api/v1/user', $userOptions);
                 $userStatusCode = $userResponse->getStatusCode();
 
-                if ($userStatusCode === 401 || $userStatusCode === 403) {
+                if (401 === $userStatusCode || 403 === $userStatusCode) {
                     return ConnectionTestResult::failure(
                         sprintf("Échec d'authentification Gitea (HTTP %d) : identifiants ou jeton d'accès invalides.", $userStatusCode)
                     );
                 }
 
-                if ($userStatusCode === 200) {
+                if (200 === $userStatusCode) {
                     $userData = $userResponse->toArray(false);
                     $authenticatedUsername = $userData['username'] ?? $userData['login'] ?? null;
 
                     $message = 'Connexion réussie à Gitea';
-                    if ($version !== null) {
+                    if (null !== $version) {
                         $message .= sprintf(' (version %s)', $version);
                     }
-                    if ($authenticatedUsername !== null) {
+                    if (null !== $authenticatedUsername) {
                         $message .= sprintf(' pour le compte %s', $authenticatedUsername);
                     }
 
@@ -136,7 +136,7 @@ class GiteaConnector implements IntegrationConnectorInterface
             }
 
             $message = 'Instance Gitea accessible';
-            if ($version !== null) {
+            if (null !== $version) {
                 $message .= sprintf(' (version %s)', $version);
             }
             $message .= ' (aucun jeton configuré)';
@@ -166,7 +166,7 @@ class GiteaConnector implements IntegrationConnectorInterface
             return $connectionResult;
         }
 
-        if ($param === null) {
+        if (null === $param) {
             return $connectionResult;
         }
 
@@ -175,52 +175,33 @@ class GiteaConnector implements IntegrationConnectorInterface
         }
 
         $repo = $param->getRepository();
-        if ($repo === null || $repo === '') {
+        if (null === $repo || '' === $repo) {
             return ConnectionTestResult::failure("Le dépôt Gitea n'est pas configuré dans les paramètres de la liaison.");
         }
 
         $baseUrl = $this->resolveBaseUrl($integration);
-        $server = $integration->getServer();
-        $token = $server?->getPassword();
-        $username = $server?->getUsername();
-        $authTypeName = $server?->getAuthenticationType()?->getName();
-        $options = $server?->getOptions() ?? [];
-
-        $timeout = isset($options['timeout']) && is_numeric($options['timeout']) ? (float) $options['timeout'] : 10.0;
-        $reqOptions = [
-            'timeout' => $timeout,
-            'max_redirects' => 3,
-            'headers' => [
-                'Accept' => 'application/json',
-            ],
-        ];
-
-        if ($authTypeName === 'Basic' && !empty($username) && !empty($token)) {
-            $reqOptions['auth_basic'] = [(string) $username, (string) $token];
-        } elseif (!empty($token)) {
-            $reqOptions['headers']['Authorization'] = 'token ' . trim((string) $token);
-        }
+        $reqOptions = $this->buildRequestOptions($integration);
 
         try {
             $cleanRepo = ltrim(trim($repo), '/');
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/v1/repos/' . $cleanRepo, $reqOptions);
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/v1/repos/'.$cleanRepo, $reqOptions);
             $statusCode = $response->getStatusCode();
 
-            if ($statusCode === 404) {
+            if (404 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Le dépôt Gitea '%s' est introuvable sur le serveur (HTTP 404).", $repo),
                     ['repository' => $repo, 'url' => $baseUrl]
                 );
             }
 
-            if ($statusCode === 401 || $statusCode === 403) {
+            if (401 === $statusCode || 403 === $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Accès non autorisé au dépôt Gitea '%s' (HTTP %d).", $repo, $statusCode),
                     ['repository' => $repo]
                 );
             }
 
-            if ($statusCode !== 200) {
+            if (200 !== $statusCode) {
                 return ConnectionTestResult::failure(
                     sprintf("Le serveur Gitea a répondu avec le statut HTTP %d pour le dépôt '%s'.", $statusCode, $repo)
                 );
@@ -229,13 +210,13 @@ class GiteaConnector implements IntegrationConnectorInterface
             $data = $response->toArray(false);
             $fullName = $data['full_name'] ?? $repo;
             $defaultBranch = $data['default_branch'] ?? null;
-            if ($param->getBranch() === null && $defaultBranch !== null) {
+            if (null === $param->getBranch() && null !== $defaultBranch) {
                 $param->setBranch($defaultBranch);
             }
 
             $message = sprintf("Dépôt Gitea '%s' accessible et opérationnel.", $fullName);
-            if ($param->getBranch() !== null) {
-                $message .= sprintf(" (branche: %s)", $param->getBranch());
+            if (null !== $param->getBranch()) {
+                $message .= sprintf(' (branche: %s)', $param->getBranch());
             }
 
             return ConnectionTestResult::success($message, [
@@ -243,7 +224,7 @@ class GiteaConnector implements IntegrationConnectorInterface
                 'defaultBranch' => $defaultBranch,
                 'stars' => $data['stars_count'] ?? 0,
                 'openIssues' => $data['open_issues_count'] ?? 0,
-                'url' => $data['html_url'] ?? ($baseUrl . '/' . $fullName),
+                'url' => $data['html_url'] ?? ($baseUrl.'/'.$fullName),
             ]);
         } catch (\Throwable $e) {
             return ConnectionTestResult::failure(
@@ -259,7 +240,7 @@ class GiteaConnector implements IntegrationConnectorInterface
         }
 
         $repo = $param->getRepository();
-        if ($repo === null || $repo === '') {
+        if (null === $repo || '' === $repo) {
             throw new \InvalidArgumentException("Le dépôt Gitea n'est pas configuré dans les paramètres de la liaison.");
         }
 
@@ -272,8 +253,8 @@ class GiteaConnector implements IntegrationConnectorInterface
         // 1. Informations générales du dépôt
         $repoInfo = [];
         try {
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/v1/repos/' . $cleanRepo, $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/v1/repos/'.$cleanRepo, $reqOptions);
+            if (200 === $response->getStatusCode()) {
                 $repoInfo = $response->toArray(false);
             }
         } catch (\Throwable) {
@@ -285,12 +266,12 @@ class GiteaConnector implements IntegrationConnectorInterface
         // 2. Historique des commits
         $commits = [];
         try {
-            $commitsUrl = $baseUrl . '/api/v1/repos/' . $cleanRepo . '/commits?limit=15';
+            $commitsUrl = $baseUrl.'/api/v1/repos/'.$cleanRepo.'/commits?limit=15';
             if (!empty($defaultBranch)) {
-                $commitsUrl .= '&sha=' . urlencode($defaultBranch);
+                $commitsUrl .= '&sha='.urlencode($defaultBranch);
             }
             $response = $this->httpClient->request('GET', $commitsUrl, $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            if (200 === $response->getStatusCode()) {
                 foreach ($response->toArray(false) as $item) {
                     $c = $item['commit'] ?? [];
                     $author = $c['author'] ?? [];
@@ -314,8 +295,8 @@ class GiteaConnector implements IntegrationConnectorInterface
         // 3. Branches actives
         $branches = [];
         try {
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/v1/repos/' . $cleanRepo . '/branches', $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/v1/repos/'.$cleanRepo.'/branches', $reqOptions);
+            if (200 === $response->getStatusCode()) {
                 foreach ($response->toArray(false) as $b) {
                     $bName = (string) ($b['name'] ?? '');
                     $branches[] = [
@@ -331,8 +312,8 @@ class GiteaConnector implements IntegrationConnectorInterface
         // 4. Demandes d'intégration (Pull Requests)
         $pullRequests = [];
         try {
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/v1/repos/' . $cleanRepo . '/pulls?state=all&limit=10', $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/v1/repos/'.$cleanRepo.'/pulls?state=all&limit=10', $reqOptions);
+            if (200 === $response->getStatusCode()) {
                 foreach ($response->toArray(false) as $p) {
                     $pullRequests[] = [
                         'number' => (int) ($p['number'] ?? 0),
@@ -351,8 +332,8 @@ class GiteaConnector implements IntegrationConnectorInterface
         // 5. Tags / Releases
         $tags = [];
         try {
-            $response = $this->httpClient->request('GET', $baseUrl . '/api/v1/repos/' . $cleanRepo . '/tags?limit=15', $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            $response = $this->httpClient->request('GET', $baseUrl.'/api/v1/repos/'.$cleanRepo.'/tags?limit=15', $reqOptions);
+            if (200 === $response->getStatusCode()) {
                 foreach ($response->toArray(false) as $t) {
                     $tags[] = [
                         'name' => (string) ($t['name'] ?? ''),
@@ -366,12 +347,12 @@ class GiteaConnector implements IntegrationConnectorInterface
         // 6. Arborescence des fichiers racine
         $files = [];
         try {
-            $contentsUrl = $baseUrl . '/api/v1/repos/' . $cleanRepo . '/contents';
+            $contentsUrl = $baseUrl.'/api/v1/repos/'.$cleanRepo.'/contents';
             if (!empty($defaultBranch)) {
-                $contentsUrl .= '?ref=' . urlencode($defaultBranch);
+                $contentsUrl .= '?ref='.urlencode($defaultBranch);
             }
             $response = $this->httpClient->request('GET', $contentsUrl, $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            if (200 === $response->getStatusCode()) {
                 foreach ($response->toArray(false) as $f) {
                     $files[] = [
                         'name' => (string) ($f['name'] ?? ''),
@@ -387,15 +368,15 @@ class GiteaConnector implements IntegrationConnectorInterface
         // 7. Contenu du README.md
         $readme = null;
         try {
-            $readmeUrl = $baseUrl . '/api/v1/repos/' . $cleanRepo . '/raw/' . urlencode($defaultBranch) . '/README.md';
+            $readmeUrl = $baseUrl.'/api/v1/repos/'.$cleanRepo.'/raw/'.urlencode($defaultBranch).'/README.md';
             $response = $this->httpClient->request('GET', $readmeUrl, $reqOptions);
-            if ($response->getStatusCode() === 200) {
+            if (200 === $response->getStatusCode()) {
                 $readme = $response->getContent(false);
             }
         } catch (\Throwable) {
         }
 
-        $cloneUrl = (string) ($repoInfo['clone_url'] ?? ($baseUrl . '/' . $cleanRepo . '.git'));
+        $cloneUrl = (string) ($repoInfo['clone_url'] ?? ($baseUrl.'/'.$cleanRepo.'.git'));
         $sshUrl = (string) ($repoInfo['ssh_url'] ?? '');
 
         return [
@@ -404,7 +385,7 @@ class GiteaConnector implements IntegrationConnectorInterface
             'fullName' => $repoInfo['full_name'] ?? $cleanRepo,
             'defaultBranch' => $defaultBranch,
             'isPrivate' => (bool) ($repoInfo['private'] ?? true),
-            'url' => $repoInfo['html_url'] ?? ($baseUrl . '/' . $cleanRepo),
+            'url' => $repoInfo['html_url'] ?? ($baseUrl.'/'.$cleanRepo),
             'cloneUrl' => $cloneUrl,
             'sshUrl' => $sshUrl,
             'stats' => [
@@ -442,20 +423,15 @@ class GiteaConnector implements IntegrationConnectorInterface
             ],
         ];
 
-        $proxy = $options['proxy'] ?? $_SERVER['HTTP_PROXY'] ?? $_SERVER['http_proxy'] ?? $_ENV['HTTP_PROXY'] ?? $_ENV['http_proxy'] ?? (getenv('HTTP_PROXY') ?: (getenv('http_proxy') ?: null));
-        if (!empty($proxy)) {
-            $proxyVal = (string) $proxy;
-            if (in_array(strtolower($proxyVal), ['none', 'direct', 'off'], true)) {
-                $reqOptions['proxy'] = '';
-            } else {
-                $reqOptions['proxy'] = $proxyVal;
-            }
+        $proxyOptions = $this->proxyResolver->resolveProxyOptions($integration);
+        if (isset($proxyOptions['proxy'])) {
+            $reqOptions['proxy'] = $proxyOptions['proxy'];
         }
 
-        if ($authTypeName === 'Basic' && !empty($username) && !empty($token)) {
+        if ('Basic' === $authTypeName && !empty($username) && !empty($token)) {
             $reqOptions['auth_basic'] = [(string) $username, (string) $token];
         } elseif (!empty($token)) {
-            $reqOptions['headers']['Authorization'] = 'token ' . trim((string) $token);
+            $reqOptions['headers']['Authorization'] = 'token '.trim((string) $token);
         }
 
         return $reqOptions;
@@ -464,12 +440,12 @@ class GiteaConnector implements IntegrationConnectorInterface
     private function resolveBaseUrl(Integration $integration): ?string
     {
         $server = $integration->getServer();
-        if ($server === null) {
+        if (null === $server) {
             return null;
         }
 
         $host = $server->getHost();
-        if ($host === null || $host === '') {
+        if (null === $host || '' === $host) {
             return null;
         }
 
@@ -478,12 +454,12 @@ class GiteaConnector implements IntegrationConnectorInterface
         $port = $server->getPort();
 
         $url = sprintf('%s://%s', $scheme, $host);
-        if ($port !== null && !(($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443))) {
-            $url .= ':' . $port;
+        if (null !== $port && !(('http' === $scheme && 80 === $port) || ('https' === $scheme && 443 === $port))) {
+            $url .= ':'.$port;
         }
 
         if (!empty($options['path'])) {
-            $url .= '/' . ltrim((string) $options['path'], '/');
+            $url .= '/'.ltrim((string) $options['path'], '/');
         }
 
         return rtrim($url, '/');
