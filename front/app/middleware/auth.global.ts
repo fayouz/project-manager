@@ -1,8 +1,14 @@
 import { useAuthStore } from "~/stores/auth";
 
 export default defineNuxtRouteMiddleware(async (to) => {
-  const publicRoutes = ["/setup", "/login", "/register", "/docs"];
-  const isPublicRoute = publicRoutes.some((route) => to.path === route || to.path.startsWith("/docs"));
+  const publicRoutes = ["/setup", "/login", "/register", "/docs", "/guide", "/changelog"];
+  const isPublicRoute = publicRoutes.some(
+    (route) =>
+      to.path === route ||
+      to.path.startsWith("/docs") ||
+      to.path.startsWith("/guide") ||
+      to.path.startsWith("/changelog"),
+  );
 
   const token = useCookie<string | null>("jwt_token").value;
   const authStore = useAuthStore();

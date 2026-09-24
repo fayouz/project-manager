@@ -28,6 +28,8 @@
 
       <template #default="{ collapsed }">
         <div class="flex flex-col gap-4 w-full">
+          <DashboardGlobalSearch :collapsed="collapsed" />
+
           <UNavigationMenu
             :items="navItems"
             orientation="vertical"
@@ -211,58 +213,90 @@ function handleLogout() {
 const navItems = [
   [
     {
-      label: 'Tableau de bord',
-      icon: 'i-heroicons-squares-2x2',
-      to: '/dashboard'
+      label: "Pilotage",
+      type: "label" as const,
     },
     {
-      label: 'Projects',
-      icon: 'i-heroicons-folder',
-      to: '/projects'
+      label: "Tableau de bord",
+      icon: "i-heroicons-squares-2x2",
+      to: "/dashboard",
     },
-    {
-      label: 'Organisations',
-      icon: 'i-heroicons-building-office-2',
-      to: '/organisations'
-    },
-    {
-      label: 'Intégrations',
-      icon: 'i-heroicons-puzzle-piece',
-      to: '/integrations'
-    },
-    {
-      label: 'Serveurs',
-      icon: 'i-heroicons-server',
-      to: '/servers'
-    },
-    {
-      label: 'Proxies',
-      icon: 'i-heroicons-globe-alt',
-      to: '/proxies'
-    },
-    {
-      label: 'Serveurs de déploiement',
-      icon: 'i-heroicons-server-stack',
-      to: '/deploymentservers'
-    },
-    {
-      label: 'Utilisateurs',
-      icon: 'i-heroicons-users',
-      to: '/users'
-    }
   ],
   [
     {
-      label: 'Paramètres LDAP',
-      icon: 'i-heroicons-adjustments-horizontal',
-      to: '/settings/ldap'
+      label: "Ressources",
+      type: "label" as const,
     },
     {
-      label: 'Documentation API',
-      icon: 'i-heroicons-arrow-top-right-on-square',
-      to: '/docs',
-      target: '_blank'
-    }
-  ]
+      label: "Projects",
+      icon: "i-heroicons-folder",
+      to: "/projects",
+    },
+    {
+      label: "Organisations",
+      icon: "i-heroicons-building-office-2",
+      to: "/organisations",
+    },
+    {
+      label: "Serveurs",
+      icon: "i-heroicons-server",
+      to: "/servers",
+    },
+    {
+      label: "Proxies",
+      icon: "i-heroicons-globe-alt",
+      to: "/proxies",
+    },
+    {
+      label: "Serveurs de déploiement",
+      icon: "i-heroicons-server-stack",
+      to: "/deploymentservers",
+    },
+    {
+      label: "Utilisateurs",
+      icon: "i-heroicons-users",
+      to: "/users",
+    },
+  ],
+  [
+    {
+      label: "Intégrations",
+      type: "label" as const,
+    },
+    {
+      label: "Intégrations",
+      icon: "i-heroicons-puzzle-piece",
+      to: "/integrations",
+    },
+  ],
+  [
+    {
+      label: "Administration",
+      type: "label" as const,
+    },
+    {
+      label: "Paramètres LDAP",
+      icon: "i-heroicons-adjustments-horizontal",
+      to: "/settings/ldap",
+    },
+    {
+      label: "Documentation API",
+      icon: "i-heroicons-arrow-top-right-on-square",
+      to: "/docs",
+      target: "_blank",
+    },
+    {
+      label: "Guide",
+      icon: "i-heroicons-book-open",
+      to: "/guide",
+      target: "_blank",
+    },
+    {
+      label: "Changelog",
+      icon: "i-heroicons-sparkles",
+      to: "/changelog",
+      target: "_blank",
+    },
+  ],
 ];
 </script>

@@ -183,7 +183,10 @@
               </UBadge>
             </div>
 
-            <!-- Détails de la branche -->
+            <!-- Aperçu de la page web -->
+            <StagingPreview :url="getPreviewUrl(staging)" size="md" />
+
+            <!-- Détails de la branche (facultatif : un staging n'est pas forcément lié à une branche git) -->
             <div v-if="staging.branch" class="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 font-mono bg-neutral-100 dark:bg-neutral-800/60 px-2.5 py-1 rounded-lg w-fit">
               <UIcon name="i-heroicons-hashtag" class="w-3.5 h-3.5 text-primary-500" />
               <span>Branche : {{ staging.branch }}</span>
@@ -321,14 +324,30 @@
           <!-- Branche Git -->
           <div class="space-y-1">
             <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-              Branche Git associée
+              Branche Git associée (optionnel)
             </label>
             <UInput
               v-model="formData.branch"
-              placeholder="Ex: main, develop, release/v1.0"
+              placeholder="Ex: main, develop, release/v1.0 (laisser vide si non applicable)"
               icon="i-heroicons-hashtag"
               class="w-full"
             />
+          </div>
+
+          <!-- URL de l'environnement (pour l'aperçu, indépendante de la branche) -->
+          <div class="space-y-1">
+            <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              URL de l'environnement (optionnel)
+            </label>
+            <UInput
+              v-model="formData.url"
+              placeholder="Ex: https://staging.example.com"
+              icon="i-heroicons-globe-alt"
+              class="w-full"
+            />
+            <p class="text-[11px] text-neutral-400">
+              Permet d'afficher un aperçu de la page web, même si aucun serveur ou branche git n'est associé.
+            </p>
           </div>
 
           <!-- Serveur de déploiement -->
@@ -503,6 +522,7 @@ import type { Staging } from "~/types/staging";
 import type { DeploymentServer } from "~/types/deploymentserver";
 import { resolveApiUrl } from "~/utils/config";
 import { getIdFromIri } from "~/utils/resource";
+import StagingPreview from "~/components/staging/StagingPreview.vue";
 
 const props = defineProps<{
   project: Project;
@@ -545,9 +565,10 @@ const formData = ref({
   name: "",
   environment: "staging",
   status: "active",
-  branch: "main",
+  branch: "",
   deploymentServer: "",
   description: "",
+  url: "",
 });
 
 // Modale Serveur de déploiement rapide
@@ -671,6 +692,10 @@ function getWebserverUrl(staging: Staging): string | null {
   return server?.webserverUrl || null;
 }
 
+function getPreviewUrl(staging: Staging): string | undefined {
+  return staging.url || getWebserverUrl(staging) || undefined;
+}
+
 // Chargement des données
 async function loadData() {
   const projectIri = props.project?.["@id"] || (props.project?.id ? `/api/projects/${props.project.id}` : null);
@@ -707,9 +732,10 @@ function openCreateModal() {
     name: "",
     environment: "staging",
     status: "active",
-    branch: "main",
+    branch: "",
     deploymentServer: deploymentServers.value.length > 0 ? (deploymentServers.value[0]["@id"] || "") : "",
     description: "",
+    url: "",
   };
   isStagingModalOpen.value = true;
 }
@@ -730,6 +756,7 @@ function openEditModal(staging: Staging) {
     branch: staging.branch || "",
     deploymentServer: serverIri || "",
     description: staging.description || "",
+    url: staging.url || "",
   };
   isStagingModalOpen.value = true;
 }
@@ -746,9 +773,10 @@ async function saveStaging() {
     project: projectIri,
     environment: formData.value.environment,
     status: formData.value.status,
-    branch: formData.value.branch,
+    branch: formData.value.branch || null,
     description: formData.value.description,
     deploymentServer: formData.value.deploymentServer || null,
+    url: formData.value.url || null,
   };
 
   try {

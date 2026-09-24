@@ -8,4 +8,5 @@ export interface Staging extends Item {
   status?: string;
   branch?: string;
   description?: string;
+  url?: string;
 }

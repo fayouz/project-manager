@@ -23,6 +23,12 @@
             Documentation API
             <UIcon name="i-heroicons-arrow-top-right-on-square" class="w-4 h-4" />
           </a>
+          <NuxtLink to="/guide" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors flex items-center gap-1">
+            Guide
+          </NuxtLink>
+          <NuxtLink to="/changelog" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors flex items-center gap-1">
+            Changelog
+          </NuxtLink>
         </nav>
 
         <!-- Action Buttons -->

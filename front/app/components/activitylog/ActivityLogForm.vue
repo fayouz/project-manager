@@ -1,77 +1,92 @@
 <template>
   <form class="space-y-4" @submit.prevent="emitSubmit">
     <UFormField
-      label="name"
-      name="name"
-      :error="violations?.name"
+      label="entityType"
+      name="entityType"
+      :error="violations?.entityType"
       
       class="capitalize"
     >
       <UInput
-        id="deploymentserver_name"
-        v-model="item.name"
+        id="activitylog_entityType"
+        v-model="item.entityType"
         class="w-full"
         type="text"
         placeholder=""
       />
     </UFormField>
     <UFormField
-      label="webserverUrl"
-      name="webserverUrl"
-      :error="violations?.webserverUrl"
+      label="entityId"
+      name="entityId"
+      :error="violations?.entityId"
       
       class="capitalize"
     >
       <UInput
-        id="deploymentserver_webserverUrl"
-        v-model="item.webserverUrl"
+        id="activitylog_entityId"
+        v-model="item.entityId"
         class="w-full"
         type="text"
         placeholder=""
       />
     </UFormField>
     <UFormField
-      label="host"
-      name="host"
-      :error="violations?.host"
+      label="entityLabel"
+      name="entityLabel"
+      :error="violations?.entityLabel"
       
       class="capitalize"
     >
       <UInput
-        id="deploymentserver_host"
-        v-model="item.host"
+        id="activitylog_entityLabel"
+        v-model="item.entityLabel"
         class="w-full"
         type="text"
         placeholder=""
       />
     </UFormField>
     <UFormField
-      label="port"
-      name="port"
-      :error="violations?.port"
+      label="action"
+      name="action"
+      :error="violations?.action"
       
       class="capitalize"
     >
       <UInput
-        id="deploymentserver_port"
-        v-model="item.port"
+        id="activitylog_action"
+        v-model="item.action"
         class="w-full"
-        type="number"
+        type="text"
         placeholder=""
       />
     </UFormField>
     <UFormField
-      label="description"
-      name="description"
-      :error="violations?.description"
+      label="actor"
+      name="actor"
+      :error="violations?.actor"
       
       class="capitalize"
     >
       <UInput
-        id="deploymentserver_description"
-        v-model="item.description"
+        id="activitylog_actor"
+        v-model="item.actor"
         class="w-full"
         type="text"
+        placeholder=""
+      />
+    </UFormField>
+    <UFormField
+      label="createdAt"
+      name="createdAt"
+      :error="violations?.createdAt"
+      
+      class="capitalize"
+    >
+      <UInput
+        id="activitylog_createdAt"
+        v-model="item.createdAt"
+        class="w-full"
+        type="date"
         placeholder=""
       />
     </UFormField>
@@ -91,18 +106,18 @@
 
 <script lang="ts" setup>
 import { ref, toRef, watch } from "vue";
-import type { DeploymentServer } from "~/types/deploymentserver";
+import type { ActivityLog } from "~/types/activitylog";
 import type { SubmissionErrors } from "~/types/error";
 import { formatDateInput } from "~/utils/date";
 
 const props = defineProps<{
-  values?: DeploymentServer;
+  values?: ActivityLog;
   errors?: SubmissionErrors;
 }>();
 
 const violations = toRef(props, "errors");
 
-const item = ref<DeploymentServer>({ ...props.values });
+const item = ref<ActivityLog>({ ...props.values });
 
 watch(
   () => props.values,
@@ -110,6 +125,8 @@ watch(
     if (newVal) {
       item.value = {
         ...newVal,
+        actor: newVal.actor?.["@id"],
+                createdAt: formatDateInput(newVal.createdAt),
       };
     }
   },
@@ -117,13 +134,10 @@ watch(
 );
 
 const emit = defineEmits<{
-  (e: "submit", item: DeploymentServer): void;
+  (e: "submit", item: ActivityLog): void;
 }>();
 
 function emitSubmit() {
-  // La collection "stagings" (relation inverse) n'est pas éditable depuis ce formulaire :
-  // on l'exclut du payload pour ne pas casser la sauvegarde du serveur de déploiement.
-  const { stagings, ...payload } = item.value as DeploymentServer & { stagings?: unknown };
-  emit("submit", payload as DeploymentServer);
+  emit("submit", item.value);
 }
 </script>

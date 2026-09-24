@@ -43,7 +43,7 @@ abstract class User implements UserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['user:read'])]
+    #[Groups(['user:read', 'activity_log:read'])]
     protected ?int $id = null;
 
     #[ORM\Column(length: 180)]
@@ -58,7 +58,7 @@ abstract class User implements UserInterface
     protected array $roles = [];
 
     #[ORM\Column(length: 180, nullable: true)]
-    #[Groups(['user:read', 'user:write'])]
+    #[Groups(['user:read', 'user:write', 'activity_log:read'])]
     protected ?string $username = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
@@ -74,7 +74,7 @@ abstract class User implements UserInterface
     protected ?string $lastName = null;
 
     #[ORM\Column(length: 255, nullable: true)]
-    #[Groups(['user:read', 'user:write'])]
+    #[Groups(['user:read', 'user:write', 'activity_log:read'])]
     protected ?string $displayName = null;
 
     #[ORM\Column(length: 255, nullable: true)]

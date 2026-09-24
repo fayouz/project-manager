@@ -3,7 +3,7 @@
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
         <h2 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-          <span>Stagings</span>
+          <span>ActivityLogs</span>
           <UBadge v-if="items?.length" color="neutral" variant="subtle" size="sm">
             {{ items.length }}
           </UBadge>
@@ -46,7 +46,7 @@
 
       <div v-else-if="!items || items.length === 0" class="text-center py-12 px-4">
         <UIcon name="i-heroicons-inbox" class="mx-auto size-12 text-neutral-400" />
-        <h3 class="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Aucun(e) staging</h3>
+        <h3 class="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Aucun(e) activitylog</h3>
         <p class="mt-1 text-sm text-neutral-500">Commencez par en ajouter un(e).</p>
         <div class="mt-4">
           <UButton
@@ -67,28 +67,22 @@
                 ID
               </th>
               <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                aperçu
+                entityType
               </th>
               <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                name
+                entityId
               </th>
               <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                project
+                entityLabel
               </th>
               <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                deploymentServer
+                action
               </th>
               <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                environment
+                actor
               </th>
               <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                status
-              </th>
-              <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                branch
-              </th>
-              <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                description
+                createdAt
               </th>
               <th scope="col" class="relative py-3.5 pl-3 pr-4 text-right text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                 Actions
@@ -103,40 +97,34 @@
             >
               <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-mono text-neutral-500">
                 <NuxtLink
-                  :to="`/stagings/${getIdFromIri(item['@id'])}`"
+                  :to="`/activitylogs/${getIdFromIri(item['@id'])}`"
                   class="text-primary hover:underline font-medium"
                 >
                   {{ getIdFromIri(item['@id']) }}
                 </NuxtLink>
               </td>
-              <td class="px-3 py-4">
-                <StagingPreview :url="item.url" size="sm" />
+              <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
+                {{ item.entityType }}
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                {{ item.name }}
+                {{ item.entityId }}
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                {{ item.project }}
+                {{ item.entityLabel }}
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                {{ item.deploymentServer }}
+                {{ item.action }}
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                {{ item.environment }}
+                {{ item.actor }}
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                {{ item.status }}
-              </td>
-              <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                {{ item.branch }}
-              </td>
-              <td class="whitespace-nowrap px-3 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                {{ item.description }}
+                {{ formatDateTime(item.createdAt) }}
               </td>
               <td class="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
                 <div class="flex items-center justify-end gap-1">
                   <UButton
-                    :to="`/stagings/${getIdFromIri(item['@id'])}`"
+                    :to="`/activitylogs/${getIdFromIri(item['@id'])}`"
                     variant="ghost"
                     color="neutral"
                     size="xs"
@@ -173,43 +161,42 @@
 <script lang="ts" setup>
 import { onBeforeUnmount } from "vue";
 import { storeToRefs } from "pinia";
-import { useStagingListStore } from "~/stores/staging/list";
-import { useStagingDeleteStore } from "~/stores/staging/delete";
+import { useActivityLogListStore } from "~/stores/activitylog/list";
+import { useActivityLogDeleteStore } from "~/stores/activitylog/delete";
 import { useFetchList, useDeleteItem } from "~/composables/api";
 import { getIdFromIri } from "~/utils/resource";
 import { formatDateTime } from "~/utils/date";
-import type { Staging } from "~/types/staging";
-import StagingPreview from "~/components/staging/StagingPreview.vue";
+import type { ActivityLog } from "~/types/activitylog";
 
 const emit = defineEmits<{
   (e: "create"): void;
-  (e: "edit", item: Staging): void;
-  (e: "show", item: Staging): void;
-  (e: "deleted", item: Staging): void;
+  (e: "edit", item: ActivityLog): void;
+  (e: "show", item: ActivityLog): void;
+  (e: "deleted", item: ActivityLog): void;
 }>();
 
-const stagingListStore = useStagingListStore();
-const stagingDeleteStore = useStagingDeleteStore();
+const activitylogListStore = useActivityLogListStore();
+const activitylogDeleteStore = useActivityLogDeleteStore();
 
-const { items, isLoading, error } = storeToRefs(stagingListStore);
-const { deleted: deletedItem } = storeToRefs(stagingDeleteStore);
+const { items, isLoading, error } = storeToRefs(activitylogListStore);
+const { deleted: deletedItem } = storeToRefs(activitylogDeleteStore);
 
-const data = await useFetchList<Staging>("stagings");
-stagingListStore.setData(data);
+const data = await useFetchList<ActivityLog>("activity_logs");
+activitylogListStore.setData(data);
 
-async function handleDelete(item: Staging) {
+async function handleDelete(item: ActivityLog) {
   if (confirm("Êtes-vous sûr de vouloir supprimer cet élément ?")) {
     const { error: delError } = await useDeleteItem(item);
     if (!delError.value) {
-      stagingListStore.deleteItem(item);
-      stagingDeleteStore.setDeleted(item);
+      activitylogListStore.deleteItem(item);
+      activitylogDeleteStore.setDeleted(item);
       emit("deleted", item);
     }
   }
 }
 
 onBeforeUnmount(() => {
-  stagingListStore.$reset();
-  stagingDeleteStore.$reset();
+  activitylogListStore.$reset();
+  activitylogDeleteStore.$reset();
 });
 </script>

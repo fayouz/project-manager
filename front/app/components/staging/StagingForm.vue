@@ -105,6 +105,21 @@
         placeholder=""
       />
     </UFormField>
+    <UFormField
+      label="url"
+      name="url"
+      :error="violations?.url"
+      description="URL permettant de produire un aperçu de la page web (facultatif, indépendant de la branche git)"
+      class="capitalize"
+    >
+      <UInput
+        id="staging_url"
+        v-model="item.url"
+        class="w-full"
+        type="text"
+        placeholder="https://staging.example.com"
+      />
+    </UFormField>
 
     <div class="flex items-center justify-end gap-3 pt-2">
       <slot name="actions">

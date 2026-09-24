@@ -3,7 +3,7 @@
     <template #header>
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-          Détails Staging
+          Détails ActivityLog
         </h3>
         <div class="flex items-center gap-2">
           <UButton
@@ -40,8 +40,6 @@
       class="mb-4"
     />
 
-    <StagingPreview v-if="item" :url="item.url" size="lg" class="mb-4" />
-
     <div v-if="item" class="divide-y divide-neutral-200 dark:divide-neutral-800">
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
         <dt class="text-sm font-medium text-neutral-500">@id</dt>
@@ -50,51 +48,39 @@
         </dd>
       </div>
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">name</dt>
+        <dt class="text-sm font-medium text-neutral-500 capitalize">entityType</dt>
         <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.name }}
+          {{ item.entityType }}
         </dd>
       </div>
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">project</dt>
+        <dt class="text-sm font-medium text-neutral-500 capitalize">entityId</dt>
         <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.project }}
+          {{ item.entityId }}
         </dd>
       </div>
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">deploymentServer</dt>
+        <dt class="text-sm font-medium text-neutral-500 capitalize">entityLabel</dt>
         <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.deploymentServer }}
+          {{ item.entityLabel }}
         </dd>
       </div>
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">environment</dt>
+        <dt class="text-sm font-medium text-neutral-500 capitalize">action</dt>
         <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.environment }}
+          {{ item.action }}
         </dd>
       </div>
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">status</dt>
+        <dt class="text-sm font-medium text-neutral-500 capitalize">actor</dt>
         <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.status }}
+          {{ item.actor }}
         </dd>
       </div>
       <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">branch</dt>
+        <dt class="text-sm font-medium text-neutral-500 capitalize">createdAt</dt>
         <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.branch }}
-        </dd>
-      </div>
-      <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">description</dt>
-        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.description }}
-        </dd>
-      </div>
-      <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-        <dt class="text-sm font-medium text-neutral-500 capitalize">url</dt>
-        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2 sm:mt-0">
-          {{ item.url }}
+          {{ formatDateTime(item.createdAt) }}
         </dd>
       </div>
     </div>
@@ -106,13 +92,12 @@ import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useFetchItem } from "~/composables/api";
 import { formatDateTime } from "~/utils/date";
-import type { Staging } from "~/types/staging";
-import StagingPreview from "~/components/staging/StagingPreview.vue";
+import type { ActivityLog } from "~/types/activitylog";
 
 const props = withDefaults(
   defineProps<{
     id?: string;
-    item?: Staging;
+    item?: ActivityLog;
     showBack?: boolean;
   }>(),
   {
@@ -122,7 +107,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: "back"): void;
-  (e: "edit", item?: Staging): void;
+  (e: "edit", item?: ActivityLog): void;
 }>();
 
 const route = useRoute();
@@ -132,7 +117,7 @@ const currentId = computed(() => {
   return props.id || (route.params.id ? decodeURIComponent(route.params.id as string) : undefined);
 });
 
-const item = ref<Staging | undefined>(props.item);
+const item = ref<ActivityLog | undefined>(props.item);
 const isLoading = ref(false);
 const error = ref<string | undefined>(undefined);
 
@@ -146,7 +131,7 @@ async function load() {
   isLoading.value = true;
   error.value = undefined;
   try {
-    const data = await useFetchItem<Staging>(`stagings/${idToLoad}`);
+    const data = await useFetchItem<ActivityLog>(`activity_logs/${idToLoad}`);
     item.value = data.retrieved.value;
     if (data.error.value) {
       error.value = data.error.value?.message || String(data.error.value);
@@ -160,7 +145,7 @@ async function load() {
 
 function goBack() {
   emit("back");
-  router.push({ path: "/stagings" });
+  router.push({ path: "/activitylogs" });
 }
 
 await load();
